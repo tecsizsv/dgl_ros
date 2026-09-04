@@ -15,7 +15,6 @@
     <depend>dgl_ros_interfaces</depend>
     <depend>tf2_ros</depend>
     <depend>tf2_eigen</depend>
-    <depend>pybind11</depend>
     <depend>rviz_visual_tools</depend>
 
     <test_depend>ament_cmake_pytest</test_depend>

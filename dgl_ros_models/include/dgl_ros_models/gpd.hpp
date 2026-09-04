@@ -11,6 +11,8 @@
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <gpd/grasp_detector.h>
 #include <dgl_ros/util/tf.hpp>
+#include <visualization_msgs/msg/marker.hpp>
+
 namespace dgl_models
 {
 
@@ -27,9 +29,12 @@ public:
   actionFromObs(std::shared_ptr<GpdObserver> observer) override;
 
   sensor_msgs::msg::PointCloud2::UniquePtr obsFromSrcs(std::shared_ptr<sensor_msgs::msg::PointCloud2> msg) override;
+  
 private:
   std::unique_ptr<gpd::GraspDetector> gpd_grasp_detector_;
   Eigen::Isometry3d tf_world_src_;
   std::unique_ptr<dgl::util::TransformLookup> tf_lookup_;
+
+  rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr grasp_marker_;
 };
 }  // namespace dgl_models

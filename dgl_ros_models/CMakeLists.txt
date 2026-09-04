@@ -15,7 +15,7 @@ endif()
 
 cmake_policy(SET CMP0074 NEW)
 # Use minimum-size optimization for pybind11 bindings
-add_compile_options("-Os")
+#add_compile_options("-Os")
 
 find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_python REQUIRED)

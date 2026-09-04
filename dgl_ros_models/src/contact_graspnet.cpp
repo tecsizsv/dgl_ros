@@ -100,7 +100,20 @@ SampleGraspPoses::Feedback::SharedPtr ContactGraspnet::actionFromObs(std::shared
 
     geometry_msgs::msg::PoseStamped grasp;
     grasp.header.frame_id = world_frame;
-    grasp.pose = tf2::toMsg(cgn_grasp * grasp_model_tf.linear());
+
+    geometry_msgs::msg::Pose pose_msg;
+    Eigen::Affine3d T = cgn_grasp;
+    pose_msg.position.x = T.translation().x();
+    pose_msg.position.y = T.translation().y();
+    pose_msg.position.z = T.translation().z();
+
+    Eigen::Quaterniond q(T.rotation());
+    pose_msg.orientation.x = q.x();
+    pose_msg.orientation.y = q.y();
+    pose_msg.orientation.z = q.z();
+    pose_msg.orientation.w = q.w();
+
+    grasp.pose = pose_msg;
 
     if (remove_centroid)
     {
