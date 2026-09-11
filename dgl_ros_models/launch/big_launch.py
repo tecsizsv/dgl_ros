@@ -42,7 +42,7 @@ def generate_launch_description():
         package="rviz2",
         executable="rviz2",
         name="rviz2",
-        arguments=["-d", "/workspaces/grasping/config/rviz_config.rviz"],
+        arguments=["-d", "config/rviz_config.rviz"],
         output="screen",
     )
 
@@ -56,10 +56,7 @@ def generate_launch_description():
                 parameters=[
                     {
                         "src_topic0": "/camera/camera/depth/color/points",
-                        "gpd_config_path": (
-                            "/workspaces/grasping/src/dgl_ros/"
-                            "dgl_ros_models/config/gpd_config.yaml"
-                        ),
+                        "gpd_config_path": "src/dgl_ros/dgl_ros_models/config/gpd_config.yaml",
                         "world_frame": "world",
                         "src_frame0": "camera_depth_optical_frame",
                     }
