@@ -11,7 +11,6 @@
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <gpd/grasp_detector.h>
 #include <dgl_ros/util/tf.hpp>
-#include <visualization_msgs/msg/marker.hpp>
 
 namespace dgl_models
 {
@@ -35,6 +34,6 @@ private:
   Eigen::Isometry3d tf_world_src_;
   std::unique_ptr<dgl::util::TransformLookup> tf_lookup_;
 
-  rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr grasp_marker_;
+
 };
 }  // namespace dgl_models

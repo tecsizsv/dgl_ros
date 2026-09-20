@@ -16,23 +16,25 @@ image_geometry_filename = 0
 # hand_depth = 0.035
 # hand_height = 0.0266
 
-# finger_width = 0.5
-# hand_outer_diameter = 0.5
-# hand_depth = 0.5
-# hand_height = 0.5
-# init_bite = 0.5
+# finger_width = 0.02
+# hand_outer_diameter = 0.08
+# hand_depth = 0.035
+# hand_height = 0.025
+# init_bite = 0.015
 
-# finger_width = 0.05
-# hand_outer_diameter = 0.1
-# hand_depth = 0.05
-# hand_height = 0.0266
-# init_bite = 0.2
+#ur5_hand_geometry.cfg
+# finger_width = 0.01
+# hand_outer_diameter = 0.105
+# hand_depth = 0.06
+# hand_height = 0.02
+# init_bite = 0.01
 
-finger_width = 0.012
-hand_outer_diameter = 0.109
-hand_depth = 0.032
-hand_height = 0.05
-init_bite = 0.01
+#rnd by me
+finger_width = 0.004
+hand_outer_diameter = 0.098 #how wide the hand can open (= maximum aperture + 2 * finger width)
+hand_depth = 0.042 #how far the the hand can reach in the object
+hand_height = 0.036 #how thick the hand is perpendicular to the direction of approach
+init_bite = 0.01 #how much the hand should bite into the object
 
 # ==== Grasp Descriptor ==== (cm) //should be left alone, should be same as what the neural network was  trained on
 #   volume_width: the width of the cube inside the robot hand
@@ -47,6 +49,7 @@ image_size = 60
 image_num_channels = 15
 
 # Path to directory that contains neural network parameters
+#weights_file = /workspaces/grasping/gpd/models/lenet/15channels/params/
 weights_file = gpd/models/lenet/15channels/params/
 
 # Preprocessing of point cloud
@@ -56,32 +59,25 @@ weights_file = gpd/models/lenet/15channels/params/
 #   camera_position: the position of the camera from which the cloud was taken
 #   sample_above_plane: only draws samples which do not belong to the table plane
 voxelize = 1
-voxel_size = 0.001
+#voxel_size = 0.001 #from dgl_ros/.../gpd_config.yaml
+voxel_size = 0.003 #from gpd/.../eigen_params.cfg
 remove_outliers = 1
-
-#should be tuned
-# workspace = 0.25 0.6 -0.5 0.05 0 100.0 #last one
-# workspace = 0.2 0.5 -0.5 0 0.01 0.2
-# workspace = -0.1 0.1 -0.3 0.2 0.5 0.8
-# workspace = -0.25 -0.16 -0.06 0.06 0.45 0.75
-# wokspace = 0.25 1 -1 1 -1 1
-# workspace = -0.4 -0.1 -0.15 0.15 0.25 0.75
-# workspace = 0.3 0.7 -0.2 0.2 0.05 0.45
-# workspace = -2.0 2.0 -2.0 2.0 -2.0 2.0
-workspace = -1.5 1.5  -1.5 1.5  0.5 3.5
+# workspace = xmin xmax ymin ymax zmin zmax
+# table size: ~1.5 x 1.37 x 0.75 ->  sum y: 1.52 sum x: 1.37
+# camera in world (from table): 1.95 -> sum z: 1.95
+#workspace = -0.4 0.9 -0.72 0.78 0 1.95 #full table, from the table to the camera
+workspace = -0.4 0.9 -0.72 0.78 0 1.75 #full table, from above the talbe to the camera
+#workspace = -0.4 0.4 -0.72 0.78 0 1.6 #not the full table, from above the talbe to the camera
 
 #should be set: where is the camera relative to the point cloud
-# camera_position = 0.5 0 0.7
-# camera_position = 0.15 0 0.04
-# camera_position = 0.084 0.017 0.522
-# camera_position = 0 0 0.57 #last one
+#camera_position = 0 0.3 1
 camera_position = 0 0 0
+#sample_above_plane = 1 #from dgl_ros/.../gpd_config.yaml
+sample_above_plane = 0 #from gpd/.../eigen_params.cfg
 
-sample_above_plane = 1
-
-#tf from robot base to camera [x y z roll pitch yaw]
-tf_base_cam = 0.085 0.017 0.524 0 0.8 0
-tf_cam_opt = 0 0 0 0 0 0
+#tf from robot base to camera [x y z roll pitch yaw] #not used in ur5.cfg
+# tf_base_cam = 0.085 0.017 0.524 0 0.8 0
+# tf_cam_opt = 0 0 0 0 0 0
 
 # Grasp candidate generation
 #   num_samples: the number of samples to be drawn from the point cloud
@@ -89,18 +85,10 @@ tf_cam_opt = 0 0 0 0 0 0
 #   nn_radius: the radius for the neighborhood search (meters)
 #   num_orientations: the number of robot hand orientations to evaluate
 #   rotation_axes: the axes about which the point neighborhood gets rotated
-# num_samples = 100
-# num_threads = 4
-# nn_radius = 0.005
-# num_orientations = 8
-# num_finger_placements = 10
-# hand_axes = 2
-# deepen_hand = 0
-# original: 500
-num_samples = 100
+num_samples = 500
 num_threads = 4
-nn_radius = 0.01
-num_orientations = 8
+nn_radius = 0.03 #~0.01-0.03 based on object size
+num_orientations = 16
 num_finger_placements = 10
 hand_axes = 2
 deepen_hand = 0
@@ -110,44 +98,26 @@ deepen_hand = 0
 #   max_aperture: the maximum gripper width
 #   workspace_grasps: dimensions of a cube centered at origin of point cloud; should be smaller than <workspace>
 min_aperture = 0.0 #fully closed
-# max_aperture = 0.5 #its too big - 50cm? 
-max_aperture = 0.085
-
-#should be tuned
-# workspace_grasps = -1.0 1.0 -1.0 1.0 -1.0 1.0
-# workspace_grasps = -0.25 -0.16 -0.06 0.06 0.3 0.75
-# workspace_grasps = 0.4 0.6 -0.2 0.1 0 0.4
-# workspace_grasps = 0.1 0.6 -0.5 0 0 0.5
-# workspace_grasps = 0.1 0.5 -1 0 0.012 0.5 #last one
-# workspace_grasps = -0.3 -0.1 -0.15 0.15 0.25 0.7
-# workspace_grasps = -.75 .75 -.5 .5 -.5 .5
-# workspace_grasps = 0.1 0.2 -0.05 0.05 0 0.65
-# workspace_grasps = -0.3 -0.1 0 0.2 0 1
-
-#workspace_grasps = -0.5 0.5  -0.5 0.5  2.0 3.2
-workspace_grasps = -1.5 1.5 -1.5 1.5 0.5 3.5
+max_aperture = 0.09
+#workspace = -0.4 0.9 -0.72 0.78 0 1.95
+#workspace_grasps = -0.2 0.4 -0.25 0.3 0.0 1.6
+workspace_grasps = -0.4 0.9 -0.72 0.78 0 1.7
 
 # Filtering of candidates based on their approach direction
 #   filter_approach_direction: turn filtering on/off
 #   direction: the direction to compare against
 #   angle_thresh: angle in radians above which grasps are filtered
-# original 1
-filter_approach_direction = 0
-# only from above
-direction = 0 0 -1
-# thresh_rad = 0.707
-thresh_rad = 0.3535
-# thresh_rad = 0.707
+filter_approach_direction = 1
+direction = 0 0 1  # only from above
+thresh_rad = 1.5
 
 # Clustering of grasps
 #   min_inliers: minimum number of inliers per cluster; set to 0 to turn off clustering
-# original: 1
-min_inliers = 1
+min_inliers = 0
 
 # Grasp selection
 #   num_selected: number of selected grasps (sorted by score)
-# original: 15
-num_selected = 1
+num_selected = 5
 
 # Visualization
 #   plot_normals: plot the surface normals
@@ -158,7 +128,7 @@ num_selected = 1
 #   plot_clustered_grasps: plot the grasps that after clustering
 #   plot_selected_grasps: plot the selected grasps (final output)
 plot_normals = 0
-plot_samples = 1
+plot_samples = 0
 plot_candidates = 0
 plot_filtered_candidates = 0
 plot_valid_grasps = 0

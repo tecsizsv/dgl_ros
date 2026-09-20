@@ -7,7 +7,6 @@
 #include <dgl_ros/util/cloud.hpp>
 #include <dgl_ros_models/gpd.hpp>
 #include <gpd/grasp_detector.h>
-#include <visualization_msgs/msg/marker.hpp>
 
 using dgl_ros_interfaces::action::SampleGraspPoses;
 using sensor_msgs::msg::PointCloud2;
@@ -34,7 +33,7 @@ SampleGraspPoses::Feedback::SharedPtr Gpd::actionFromObs(std::shared_ptr<GpdObse
   // Convert to PCL.
   PointCloudRGB cloud;
   pcl::fromROSMsg(*msg, cloud);
-  pcl::io::savePCDFileASCII ("temp_ros_cloud.pcd", cloud);
+  pcl::io::savePCDFileASCII ("temp_ros_cloud.pcd", cloud); //---- Save the point cloud to a PCD file
 
   // Convert to GPD.
   auto grasp_cloud = std::make_shared<PointCloudRGBA>();
@@ -75,31 +74,7 @@ SampleGraspPoses::Feedback::SharedPtr Gpd::actionFromObs(std::shared_ptr<GpdObse
     grasp_pose.pose.orientation.z = rot.z();
 
     feedback->grasp_candidates.emplace_back(grasp_pose);
-    //implement marker
-    grasp_marker_ = this->create_publisher<visualization_msgs::msg::Marker>("grasp_marker",10);
-    auto grasp_msg = visualization_msgs::msg::Marker();
-    grasp_msg.header.frame_id = "world";
-    grasp_msg.header.stamp = this->now();
-    grasp_msg.ns = "grasp_ns";
-    grasp_msg.id = 0;
-    grasp_msg.type = grasp_msg.ARROW;
-    grasp_msg.action = grasp_msg.ADD;
-    grasp_msg.pose.position.x = grasp_pose.pose.position.x;
-    grasp_msg.pose.position.y = grasp_pose.pose.position.y;
-    grasp_msg.pose.position.z = grasp_pose.pose.position.z;
-    grasp_msg.pose.orientation.w = grasp_pose.pose.orientation.w;
-    grasp_msg.pose.orientation.x = grasp_pose.pose.orientation.x;
-    grasp_msg.pose.orientation.y = grasp_pose.pose.orientation.y;
-    grasp_msg.pose.orientation.z = grasp_pose.pose.orientation.z;
-    grasp_msg.scale.x = 1.0;
-    grasp_msg.scale.y = 1.0;
-    grasp_msg.scale.z = 0.0;
-    grasp_msg.color.r = 1.0f;  
-    grasp_msg.color.g = 0.0f;
-    grasp_msg.color.b = 0.0f; 
-    grasp_msg.color.a = 1.0f;
-
-    grasp_marker_->publish(grasp_msg);
+    
     // Grasp is selected based on cost not score
     // Invert score to represent grasp with lowest cost
     feedback->costs.emplace_back(static_cast<double>(1.0 / grasps.at(id)->getScore()));

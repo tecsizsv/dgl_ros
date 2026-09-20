@@ -12,33 +12,17 @@ from ament_index_python.packages import get_package_share_directory
 
 def generate_launch_description():
 
-    realsense_launch = IncludeLaunchDescription( # elindítja a kamerát, ami a pointcloud topicokat publikálja
-        PythonLaunchDescriptionSource(
-            os.path.join(
-                get_package_share_directory("realsense2_camera"),
-                "launch",
-                "rs_launch.py",
-            )
-        ),
-        launch_arguments={
-            "depth_module.depth_profile": "1280x720x30",
-            "pointcloud.enable": "true",
-        }.items(),
+    bag_play = ExecuteProcess(
+    cmd=[
+        "ros2", "bag", "play",
+        "rosbag_comp_bottle",
+        "--loop",
+        "-r", "0.5"
+    ],
+    output="screen",
     )
 
-    static_tf = Node( # publikálja a transzformot: cameralink hol van a world-höz képest
-        package="tf2_ros",
-        executable="static_transform_publisher",
-        name="camera_base_tf",
-        arguments=[
-            # x    y    z  roll pitch yaw   parent   child
-            "0", "0", "1.95", "0", "1.5707963", "0",
-            "world",
-            "camera_link",
-        ],
-    )
-
-    rviz2 = Node( # elindítja az rviz-t
+    rviz2 = Node(
         package="rviz2",
         executable="rviz2",
         name="rviz2",
@@ -46,7 +30,7 @@ def generate_launch_description():
         output="screen",
     )
 
-    gpd_node = TimerAction( # action szerver, ami feliratkozik a kamera node által publikált pointclouid topicra, ésa kiszámolt grasp listát az action eredményeként adja vissza, amikor lekérdezik
+    gpd_node = TimerAction(
         period=3.0,   # seconds — give the camera time to publish
         actions=[
             Node(
@@ -66,7 +50,7 @@ def generate_launch_description():
         ],
     )
 
-    send_grasp_goal = TimerAction( # ez a hívás elindítja a grasp-számítást, nem egy már kész eredményt kér le
+    send_grasp_goal = TimerAction(
         period=10.0,  # seconds — wait for GPD to be ready
         actions=[
             LogInfo(msg="Sending SampleGraspPoses action goal..."),
@@ -83,8 +67,7 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        realsense_launch,
-        static_tf,
+        bag_play,
         rviz2,
         gpd_node,
     ])
