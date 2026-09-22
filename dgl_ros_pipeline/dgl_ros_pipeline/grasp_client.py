@@ -4,7 +4,7 @@ from rclpy.action import ActionClient
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from visualization_msgs.msg import Marker, MarkerArray
-
+from rosidl_runtime_py.convert import message_to_yaml
 from dgl_ros_interfaces.action import SampleGraspPoses
 
 
@@ -71,13 +71,16 @@ class GraspClient(Node):
     #This method is called when the action server sends feedback about the goal.
     def feedback_callback(self, feedback_msg):
         feedback = feedback_msg.feedback
-        self.get_logger().info('Received feedback: {0}')
+        #self.get_logger().info('Received feedback: {0}'.format(feedback.grasp_candidates))
+        self.get_logger().info(message_to_yaml(feedback))
         # Publish grasp markers for visualization in RViz.
         self.publish_grasp_markers(feedback.grasp_candidates)
     #end of feedback_callback
 
     #This method creates a marker for a grasp, it's a tool used only inside this class
     def _make_marker(self, grasp_candidate, marker_id):
+        #start_point = grasp_candidate.pose.position - hand_depth * grasp_candidate.approach
+        #end_point = grasp_candidate.pose.position
         marker = Marker()
         marker.header.frame_id = grasp_candidate.header.frame_id
         marker.header.stamp = self.get_clock().now().to_msg()
@@ -89,15 +92,19 @@ class GraspClient(Node):
 
         marker.action = Marker.ADD
 
+        #marker.points = [start_point, end_point]
+
         # Set the scale of the marker
         marker.scale.x = 0.2 # length
         marker.scale.y = 0.03 # width
-        marker.scale.z = 0.08 # height
+        marker.scale.z = 0.03 # height
 
         # Set the color
-        marker.color.r = 0.0
-        marker.color.g = 1.0
-        marker.color.b = 0.0
+        #pretty pink: 0.922, 0.114, 0.596
+        #pretty green: 0.573, 0.961, 0.584
+        marker.color.r = 0.922
+        marker.color.g = 0.114
+        marker.color.b = 0.596
         marker.color.a = 1.0
 
         # Set the pose of the marker

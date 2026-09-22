@@ -9,8 +9,19 @@ from launch.actions import (
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
+from launch.event_handlers import (
+    OnExecutionComplete,
+    OnProcessExit,
+    OnProcessIO,
+    OnProcessStart,
+    OnShutdown
+)
 
 def generate_launch_description():
+
+    # Ez a telepített (share) mappára mutat, nem a forrásmappára
+    rviz_config_dir = get_package_share_directory('dgl_ros_pipeline')
+    gpd_config_dir = get_package_share_directory('dgl_ros_models')
 
     realsense_launch = IncludeLaunchDescription( # elindítja a kamerát, ami a pointcloud topicokat publikálja
         PythonLaunchDescriptionSource(
@@ -42,7 +53,7 @@ def generate_launch_description():
         package="rviz2",
         executable="rviz2",
         name="rviz2",
-        arguments=["-d", "config.rviz"],
+        arguments=["-d", os.path.join(rviz_config_dir, "config", "config.rviz")],
         output="screen",
     )
 
@@ -56,7 +67,7 @@ def generate_launch_description():
                 parameters=[
                     {
                         "src_topic0": "/camera/camera/depth/color/points",
-                        "gpd_config_path": "src/dgl_ros/dgl_ros_models/config/gpd_config.yaml",
+                        "gpd_config_path": os.path.join(gpd_config_dir, "config", "gpd_config.yaml"),
                         "world_frame": "world",
                         "src_frame0": "camera_depth_optical_frame",
                     }

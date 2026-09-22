@@ -117,7 +117,7 @@ min_inliers = 0
 
 # Grasp selection
 #   num_selected: number of selected grasps (sorted by score)
-num_selected = 5
+num_selected = 1 #original 5
 
 # Visualization
 #   plot_normals: plot the surface normals
