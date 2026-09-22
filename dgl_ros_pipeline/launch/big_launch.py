@@ -3,6 +3,7 @@ from launch import LaunchDescription
 from launch.actions import (
     IncludeLaunchDescription,
     ExecuteProcess,
+    RegisterEventHandler,
     TimerAction,
     LogInfo,
 )
@@ -57,45 +58,64 @@ def generate_launch_description():
         output="screen",
     )
 
-    gpd_node = TimerAction( # action szerver, ami feliratkozik a kamera node által publikált pointclouid topicra, ésa kiszámolt grasp listát az action eredményeként adja vissza, amikor lekérdezik
-        period=3.0,   # seconds — give the camera time to publish
-        actions=[
-            Node(
-                package="dgl_ros_models",
-                executable="gpd",
-                name="gpd",
-                parameters=[
-                    {
-                        "src_topic0": "/camera/camera/depth/color/points",
-                        "gpd_config_path": os.path.join(gpd_config_dir, "config", "gpd_config.yaml"),
-                        "world_frame": "world",
-                        "src_frame0": "camera_depth_optical_frame",
-                    }
-                ],
-                output="screen",
-            )
+    # gpd_node = TimerAction( # action szerver, ami feliratkozik a kamera node által publikált pointclouid topicra, ésa kiszámolt grasp listát az action eredményeként adja vissza, amikor lekérdezik
+    #     period=3.0,   # seconds — give the camera time to publish
+    #     actions=[
+    #         Node(
+    #             package="dgl_ros_models",
+    #             executable="gpd",
+    #             name="gpd",
+    #             parameters=[
+    #                 {
+    #                     "src_topic0": "/camera/camera/depth/color/points",
+    #                     "gpd_config_path": os.path.join(gpd_config_dir, "config", "gpd_config.yaml"),
+    #                     "world_frame": "world",
+    #                     "src_frame0": "camera_depth_optical_frame",
+    #                 }
+    #             ],
+    #             output="screen",
+    #         )
+    #     ],
+    # )
+
+    gpd_node = Node(
+        package="dgl_ros_models",
+        executable="gpd",
+        name="gpd",
+        parameters=[
+            {
+                "src_topic0": "/camera/camera/depth/color/points",
+                "gpd_config_path": os.path.join(gpd_config_dir, "config", "gpd_config.yaml"),
+                "world_frame": "world",
+                "src_frame0": "camera_depth_optical_frame",
+            }
         ],
+        output="screen",
     )
 
-    send_grasp_goal = TimerAction( # ez a hívás elindítja a grasp-számítást, nem egy már kész eredményt kér le
-        period=10.0,  # seconds — wait for GPD to be ready
-        actions=[
-            LogInfo(msg="Sending SampleGraspPoses action goal..."),
-            ExecuteProcess(
-                cmd=[
-                    "ros2", "action", "send_goal",
-                    "/sample_grasp_poses",
-                    "dgl_ros_interfaces/action/SampleGraspPoses",
-                    "{action_name: 'sample_grasp_poses'}",
-                ],
-                output="screen",
-            ),
-        ],
+    grasp_client = Node( # elindítja a grasp clientet
+        package="dgl_ros_pipeline",
+        executable="grasp_client",
+        name="grasp_client",
+        output="screen",
+    )
+
+    wait_for_camera = ExecuteProcess(
+        cmd=["ros2", "topic", "echo", "--once", "/camera/camera/depth/color/points"],
+        output="log",
     )
 
     return LaunchDescription([
+        wait_for_camera,
+        RegisterEventHandler(
+            event_handler=OnProcessExit(
+                target_action=wait_for_camera,
+                on_exit=[gpd_node],
+            )
+     ),
         realsense_launch,
         static_tf,
         rviz2,
-        gpd_node,
+        # gpd_node,
+        grasp_client,
     ])
