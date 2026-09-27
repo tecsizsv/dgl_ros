@@ -25,7 +25,7 @@ class ContactGraspnet : public CgnAgent
 public:
   ContactGraspnet(rclcpp::NodeOptions& options);
 
-  dgl_ros_interfaces::action::SampleGraspPoses::Feedback::SharedPtr
+  dgl_ros_interfaces::action::SampleGraspPoses::Result::SharedPtr
   actionFromObs(std::shared_ptr<CgnObserver> observer) override;
 
   sensor_msgs::msg::PointCloud2::UniquePtr obsFromSrcs(std::shared_ptr<sensor_msgs::msg::PointCloud2> msg) override;

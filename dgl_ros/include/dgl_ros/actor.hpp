@@ -25,7 +25,7 @@ public:
    * @param action_generator_func
    */
   Actor(const rclcpp::NodeOptions& options,
-        std::function<typename ActionT::Feedback::SharedPtr()> action_generator_func)
+        std::function<typename ActionT::Result::SharedPtr()> action_generator_func)
     : Node("actor", options), action_generator_func_(action_generator_func)
   {
     this->declare_parameter("action_topic", "sample_grasp_poses");
@@ -53,7 +53,7 @@ private:
     RCLCPP_INFO(this->get_logger(), "New goal accepted");
     // This needs to return quickly to avoid blocking the executor, so spin up a new thread.
     auto publish_grasps_callback = [this](const GoalHandleSharedPtr& goal_handle) {
-      goal_handle->publish_feedback(action_generator_func_());
+      goal_handle->succeed(action_generator_func_());
     };
     std::thread{ publish_grasps_callback, goal_handle }.detach();
   }
@@ -71,7 +71,7 @@ private:
     return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
   }
 
-  std::function<typename ActionT::Feedback::SharedPtr()> action_generator_func_;
+  std::function<typename ActionT::Result::SharedPtr()> action_generator_func_;
   typename rclcpp_action::Server<ActionT>::SharedPtr action_server_;
 };
 }  // namespace dgl

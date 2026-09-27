@@ -56,9 +56,9 @@ public:
    * @brief Function that generates an action from an observer.
    *
    * @param observer  Observer that can be called multiple times to generate observations.
-   * @return ActionT::Feedback::SharedPtr
+   * @return ActionT::Result::SharedPtr
    */
-  virtual typename ActionT::Feedback::SharedPtr actionFromObs(std::shared_ptr<Observer<ObsT, SrcTs...>> observer) = 0;
+  virtual typename ActionT::Result::SharedPtr actionFromObs(std::shared_ptr<Observer<ObsT, SrcTs...>> observer) = 0;
 
   /**
    * @brief Function that generates an observation from a set of source messages.

@@ -47,7 +47,7 @@ ContactGraspnet::ContactGraspnet(rclcpp::NodeOptions& options) : CgnAgent(option
   mp_gil_release_ = std::make_unique<py::gil_scoped_release>();
 }
 
-SampleGraspPoses::Feedback::SharedPtr ContactGraspnet::actionFromObs(std::shared_ptr<CgnObserver> observer)
+SampleGraspPoses::Result::SharedPtr ContactGraspnet::actionFromObs(std::shared_ptr<CgnObserver> observer)
 {
   auto success_threshold = this->get_parameter("success_threshold").as_double();
   auto visualize = this->get_parameter("visualize").as_bool();
@@ -129,14 +129,14 @@ SampleGraspPoses::Feedback::SharedPtr ContactGraspnet::actionFromObs(std::shared
     }
   }
 
-  auto feedback = std::make_shared<SampleGraspPoses::Feedback>();
+  auto result = std::make_shared<SampleGraspPoses::Result>();
   for (auto id : grasp_ids)
   {
-    feedback->grasp_candidates.emplace_back(grasps[id]);
-    feedback->costs.emplace_back(1.0 / confidence_list[id]);
+    result->grasp_candidates.emplace_back(grasps[id]);
+    result->costs.emplace_back(1.0 / confidence_list[id]);
   }
 
-  return feedback;
+  return result;
 }
 
 std::unique_ptr<PointCloud2> ContactGraspnet::obsFromSrcs(std::shared_ptr<PointCloud2> msg)

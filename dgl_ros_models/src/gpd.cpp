@@ -27,8 +27,9 @@ Gpd::Gpd(rclcpp::NodeOptions& options) : GpdAgent(options)
                               this->get_parameter("tf_timeout_seconds").as_int(), tf_world_src_);
 }
 
-SampleGraspPoses::Feedback::SharedPtr Gpd::actionFromObs(std::shared_ptr<GpdObserver> observer)
+SampleGraspPoses::Result::SharedPtr Gpd::actionFromObs(std::shared_ptr<GpdObserver> observer)
 {
+  RCLCPP_INFO_STREAM(this->get_logger(), "New action received...");
   auto [id, msg] = observer->observe();
   // Convert to PCL.
   PointCloudRGB cloud;
@@ -36,6 +37,7 @@ SampleGraspPoses::Feedback::SharedPtr Gpd::actionFromObs(std::shared_ptr<GpdObse
   pcl::io::savePCDFileASCII ("temp_ros_cloud.pcd", cloud); //---- Save the point cloud to a PCD file
 
   // Convert to GPD.
+  RCLCPP_INFO_STREAM(this->get_logger(), "Preprocess pointcloud...");
   auto grasp_cloud = std::make_shared<PointCloudRGBA>();
   pcl::copyPointCloud(cloud, *grasp_cloud);
   Eigen::Matrix3Xd camera_view_point(3, 1);
@@ -44,13 +46,19 @@ SampleGraspPoses::Feedback::SharedPtr Gpd::actionFromObs(std::shared_ptr<GpdObse
 
   std::vector<std::unique_ptr<gpd::candidate::Hand>> grasps;  // detect grasp poses                   // detect grasps
                                                               // in the point cloud
+
+
+
+  RCLCPP_INFO_STREAM(this->get_logger(), "Starting grasp detection...");
   grasps = gpd_grasp_detector_->detectGrasps(gpd_cloud);      // detect grasp poses
   std::vector<unsigned int> grasp_ids;
   for (unsigned int i = 0; i < grasps.size(); i++)
   {
     grasp_ids.push_back(i);
   }
-  auto feedback = std::make_shared<SampleGraspPoses::Feedback>();
+
+  RCLCPP_INFO_STREAM(this->get_logger(), "Detected " << grasps.size() << " grasps.");
+  auto result = std::make_shared<SampleGraspPoses::Result>();
   for (auto id : grasp_ids)
   {
     // transform grasp from camera optical link into frame_id
@@ -73,14 +81,15 @@ SampleGraspPoses::Feedback::SharedPtr Gpd::actionFromObs(std::shared_ptr<GpdObse
     grasp_pose.pose.orientation.y = rot.y();
     grasp_pose.pose.orientation.z = rot.z();
 
-    feedback->grasp_candidates.emplace_back(grasp_pose);
+    result->grasp_candidates.emplace_back(grasp_pose);
     
     // Grasp is selected based on cost not score
     // Invert score to represent grasp with lowest cost
-    feedback->costs.emplace_back(static_cast<double>(1.0 / grasps.at(id)->getScore()));
+    result->costs.emplace_back(static_cast<double>(1.0 / grasps.at(id)->getScore()));
   }
 
-  return feedback;
+  RCLCPP_INFO_STREAM(this->get_logger(), "Finalizing grasp detection.");
+  return result;
 }
 
 std::unique_ptr<PointCloud2> Gpd::obsFromSrcs(std::shared_ptr<PointCloud2> msg)

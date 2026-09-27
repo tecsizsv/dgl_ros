@@ -1,4 +1,6 @@
 # Added some notes based on the ROS tutorials (https://docs.ros.org/en/kilted/Tutorials/)
+import time
+
 import rclpy
 from rclpy.action import ActionClient
 from rclpy.executors import ExternalShutdownException
@@ -57,15 +59,15 @@ class GraspClient(Node):
 
         self.get_logger().info('Goal accepted :)')
 
-        # self._get_result_future = goal_handle.get_result_async()
-        # self._get_result_future.add_done_callback(self.get_result_callback)
+        self._get_result_future = goal_handle.get_result_async()
+        self._get_result_future.add_done_callback(self.get_result_callback)
     #end of goal_response_callback
 
     #Method is called when the action server sends the result of the goal.
-    # def get_result_callback(self, future):
-    #     result = future.result().result
-    #     self.get_logger().info('Result: {0}'.format(result.grasp_state))
-    #     rclpy.shutdown()
+    def get_result_callback(self, future):
+        result = future.result().result
+        self.get_logger().info('Result: {0}'.format(result.grasp_candidates))
+        rclpy.shutdown()
     #end of get_result_callback
 
     #This method is called when the action server sends feedback about the goal.
@@ -145,7 +147,10 @@ def main(args=None):
             # instance of our GraspClient node
             action_client = GraspClient()
 
-            #future = action_client.send_goal('sample_grasp_poses')
+            #delay 5 seconds to allow the action server to start up
+            time.sleep(5)
+
+            #future = action_client.send_goal()
             action_client.send_goal()
 
             #TODO: handle the result of the action (now we only get data in feedback)
