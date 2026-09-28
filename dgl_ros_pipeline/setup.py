@@ -31,6 +31,7 @@ setup(
     entry_points={
         'console_scripts': [
           'grasp_client = dgl_ros_pipeline.grasp_client:main',
+          'object_detector = dgl_ros_pipeline.object_detector:main',
         ],
     },
 )
