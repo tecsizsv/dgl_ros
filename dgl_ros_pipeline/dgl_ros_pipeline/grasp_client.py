@@ -66,17 +66,17 @@ class GraspClient(Node):
     #Method is called when the action server sends the result of the goal.
     def get_result_callback(self, future):
         result = future.result().result
-        self.get_logger().info('Result: {0}'.format(result.grasp_candidates))
+        self.get_logger().info(message_to_yaml(result))
+        self.publish_grasp_markers(result.grasp_candidates)
         rclpy.shutdown()
     #end of get_result_callback
 
     #This method is called when the action server sends feedback about the goal.
     def feedback_callback(self, feedback_msg):
         feedback = feedback_msg.feedback
-        #self.get_logger().info('Received feedback: {0}'.format(feedback.grasp_candidates))
         self.get_logger().info(message_to_yaml(feedback))
         # Publish grasp markers for visualization in RViz.
-        self.publish_grasp_markers(feedback.grasp_candidates)
+        #self.publish_grasp_markers(feedback.grasp_candidates)
     #end of feedback_callback
 
     #This method creates a marker for a grasp, it's a tool used only inside this class
@@ -136,8 +136,7 @@ class GraspClient(Node):
             marker = self._make_marker(grasp_candidates[i], i)
             marker_array.markers.append(marker)
 
-        self._marker_pub.publish(marker_array)
-      
+        self._marker_pub.publish(marker_array)   
     #end of publish_grasp_markers
         
         

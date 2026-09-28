@@ -81,7 +81,7 @@ def generate_launch_description():
     gpd_node = Node(
         package="dgl_ros_models",
         executable="gpd",
-        name="gpd",
+        #name="gpd",
         parameters=[
             {
                 "src_topic0": "/camera/camera/depth/color/points",

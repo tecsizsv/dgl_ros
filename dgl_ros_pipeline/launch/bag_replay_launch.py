@@ -31,7 +31,8 @@ def generate_launch_description():
             #"rosbag_comp_bottle",
             LaunchConfiguration('rosbag_name'),
             "--loop",
-            "--rate", "0.3"
+            "--rate", "0.3",
+            "--progress-bar-update-rate", "0"
         ],
         output="screen",
     )
@@ -44,7 +45,7 @@ def generate_launch_description():
             # x    y    z  roll pitch yaw   parent   child
             "0", "0", "1.95", "0", "1.5707963", "0",
             "world",
-            "camera_link",
+            "camera_link"
         ],
     )
 
@@ -59,7 +60,7 @@ def generate_launch_description():
     gpd_node = Node(
         package="dgl_ros_models",
         executable="gpd",
-        name="gpd",
+        #name="gpd",
         parameters=[
             {
                 "src_topic0": "/camera/camera/depth/color/points",

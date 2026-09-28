@@ -29,7 +29,7 @@ Gpd::Gpd(rclcpp::NodeOptions& options) : GpdAgent(options)
 
 SampleGraspPoses::Result::SharedPtr Gpd::actionFromObs(std::shared_ptr<GpdObserver> observer)
 {
-  RCLCPP_INFO_STREAM(this->get_logger(), "New action received...");
+    RCLCPP_INFO(this->get_logger(), "New action received...");
   auto [id, msg] = observer->observe();
   // Convert to PCL.
   PointCloudRGB cloud;
@@ -37,7 +37,7 @@ SampleGraspPoses::Result::SharedPtr Gpd::actionFromObs(std::shared_ptr<GpdObserv
   pcl::io::savePCDFileASCII ("temp_ros_cloud.pcd", cloud); //---- Save the point cloud to a PCD file
 
   // Convert to GPD.
-  RCLCPP_INFO_STREAM(this->get_logger(), "Preprocess pointcloud...");
+  RCLCPP_INFO(this->get_logger(), "Preprocess pointcloud...");
   auto grasp_cloud = std::make_shared<PointCloudRGBA>();
   pcl::copyPointCloud(cloud, *grasp_cloud);
   Eigen::Matrix3Xd camera_view_point(3, 1);
@@ -49,7 +49,7 @@ SampleGraspPoses::Result::SharedPtr Gpd::actionFromObs(std::shared_ptr<GpdObserv
 
 
 
-  RCLCPP_INFO_STREAM(this->get_logger(), "Starting grasp detection...");
+  RCLCPP_INFO(this->get_logger(), "Starting grasp detection...");
   grasps = gpd_grasp_detector_->detectGrasps(gpd_cloud);      // detect grasp poses
   std::vector<unsigned int> grasp_ids;
   for (unsigned int i = 0; i < grasps.size(); i++)
@@ -88,7 +88,7 @@ SampleGraspPoses::Result::SharedPtr Gpd::actionFromObs(std::shared_ptr<GpdObserv
     result->costs.emplace_back(static_cast<double>(1.0 / grasps.at(id)->getScore()));
   }
 
-  RCLCPP_INFO_STREAM(this->get_logger(), "Finalizing grasp detection.");
+  RCLCPP_INFO(this->get_logger(), "Finalizing grasp detection.");
   return result;
 }
 
