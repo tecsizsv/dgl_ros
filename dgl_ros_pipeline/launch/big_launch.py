@@ -43,10 +43,19 @@ def generate_launch_description():
         executable="static_transform_publisher",
         name="camera_base_tf",
         arguments=[
-            # x    y    z  roll pitch yaw   parent   child
-            "0", "0", "1.95", "0", "1.5707963", "0",
-            "world",
-            "camera_link",
+            # old-style arguments
+            # "0", "0", "1.95", "0", "1.5707963", "0",
+            # "world",
+            # "camera_link",
+            # new-style arguments
+            "--x", "0",
+            "--y", "0",
+            "--z", "1.95",
+            "--roll", "0",
+            "--pitch", "1.5707963",
+            "--yaw", "0",
+            "--frame-id", "world",
+            "--child-frame-id", "camera_link",
         ],
     )
 
