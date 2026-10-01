@@ -16,73 +16,34 @@ class ObjectDetector(Node):
 
         self._bridge = cv_bridge.CvBridge()
 
-        # YOLO model
+        # Loading YOLO model
         self._model = YOLO("yolo26m.pt")
-
-        queue_size = 10
-        max_delay = 0.05
-
+        self._model.task = "detect"
+    
         # Subscribers:
-        #Pointcloud
-        # self._pointcloud_sub = self.create_subscription(PointCloud2, "/camera/camera/depth/color/points", self.pointcloud_callback, qos_profile_sensor_data)
-        
-        # #RGB image        
-        self._rgb_sub = self.create_subscription(Image, "/camera/camera/color/image_raw", self.rgb_callback, qos_profile_sensor_data)
-        #self._rgb_sub = Subscriber(self, Image, "/camera/camera/color/image_raw", qos_profile_sensor_data)
-
-        # #Depth image
-        # #self._depth_sub = self.create_subscription(Image, "/camera/camera/depth/image_raw", self.depth_callback, qos_profile_sensor_data)
-        # self._depth_sub = Subscriber(self, Image, "/camera/camera/depth/image_raw", qos_profile_sensor_data)
-
-        # self.time_sync = ApproximateTimeSynchronizer([self._rgb_sub, self._depth_sub], queue_size, max_delay)  
-        # self.time_sync.registerCallback(self.sync_callback)
+        self.create_subscription(Image, "/camera/camera/color/image_raw", self.image_callback, qos_profile_sensor_data)
 
         # Publishers:
-        #annotated image
-        self._detection_image_pub = self.create_publisher(Image, "detection_image", 10)
-        #bounding box and object name
-        #self._detections_pub = self.create_publisher(Image, "detections", 10)
+        self._detection_pub = self.create_publisher(Image, "detections", 10)
+
     
     #end of __init__
 
-    # def pointcloud_callback(self, message):
-
-    #     points = point_cloud2.read_points_numpy(message, field_names=("x", "y", "z", "rgb"))
-    #     points = points.reshape(message.height, message.width, 4)
-
-
-
-    #     # self._model(image): run YOLO on the image (result is an array/list)
-    #     # .plot(show=false): draws the bounding box on the image
-    #     # show=false: don't open display window
-    #     result = self._model(points)[0].plot(show=False)
-
-    #     # Publishing the result
-    #     self._detections_pub.publish(result)
-    # #end of pointcloud_callback
-
-    def rgb_callback(self, message):
+    def image_callback(self, message):
         # Convert ROS Image message to OpenCV image
-        self._rgb_image = self._bridge.imgmsg_to_cv2(message, desired_encoding="bgr8")
+        image = self._bridge.imgmsg_to_cv2(message, desired_encoding="bgr8")
+        #image[y1:y2, x1:x2]
+        cropped = image[20:720, 440:1090]
 
-        # Run YOLO model on the RGB image
-        detection_image = self._model(self._rgb_image)[0].plot(show=False)
+        # Run YOLO model on the converted image
+        detections = self._model(cropped)[0].plot(show=False)
+        self.get_logger().info("Object detection completed.")
 
         # Publish the annotated image
-        self._detection_image_pub.publish(self._bridge.cv2_to_imgmsg(detection_image, encoding="bgr8"))
-    #end of rgb_callback
+        self._detection_pub.publish(self._bridge.cv2_to_imgmsg(detections, encoding="bgr8"))
+    #end of image_callback
 
-
-    # def sync_callback(self, rgb_msg, depth_msg):
-    #     self._rgb_image = self._bridge.imgmsg_to_cv2(rgb_msg, desired_encoding="bgr8")
-    #     self._depth_image = self._bridge.imgmsg_to_cv2(depth_msg, desired_encoding="passthrough")
-
-    #     detection_image = self._model(self._rgb_image)[0].plot(show=False)
-
-    #     self._detections_pub.publish(self._bridge.cv2_to_imgmsg(detection_image, encoding="bgr8"))
-    # # #end of sync_callback
-
-
+0
 def main(args=None):
     try:
         with rclpy.init(args=args):
