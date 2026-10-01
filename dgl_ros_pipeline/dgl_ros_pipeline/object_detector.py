@@ -5,8 +5,6 @@ from rclpy.node import Node
 from ultralytics import YOLO
 from sensor_msgs.msg import Image
 from rclpy.qos import qos_profile_sensor_data
-from sensor_msgs_py import point_cloud2
-from sensor_msgs.msg import PointCloud2
 from message_filters import Subscriber, ApproximateTimeSynchronizer
 
 # qos_profile_sensor_data: Quality of Service (QoS) profile
@@ -29,8 +27,8 @@ class ObjectDetector(Node):
         # self._pointcloud_sub = self.create_subscription(PointCloud2, "/camera/camera/depth/color/points", self.pointcloud_callback, qos_profile_sensor_data)
         
         # #RGB image        
-        # #self._rgb_sub = self.create_subscription(Image, "/camera/camera/color/image_raw", self.rgb_callback, qos_profile_sensor_data)
-        # self._rgb_sub = Subscriber(self, Image, "/camera/camera/color/image_raw", qos_profile_sensor_data)
+        self._rgb_sub = self.create_subscription(Image, "/camera/camera/color/image_raw", self.rgb_callback, qos_profile_sensor_data)
+        #self._rgb_sub = Subscriber(self, Image, "/camera/camera/color/image_raw", qos_profile_sensor_data)
 
         # #Depth image
         # #self._depth_sub = self.create_subscription(Image, "/camera/camera/depth/image_raw", self.depth_callback, qos_profile_sensor_data)
@@ -43,7 +41,7 @@ class ObjectDetector(Node):
         #annotated image
         self._detection_image_pub = self.create_publisher(Image, "detection_image", 10)
         #bounding box and object name
-        self._detections_pub = self.create_publisher(Image, "detections", 10)
+        #self._detections_pub = self.create_publisher(Image, "detections", 10)
     
     #end of __init__
 
@@ -63,6 +61,17 @@ class ObjectDetector(Node):
     #     self._detections_pub.publish(result)
     # #end of pointcloud_callback
 
+    def rgb_callback(self, message):
+        # Convert ROS Image message to OpenCV image
+        self._rgb_image = self._bridge.imgmsg_to_cv2(message, desired_encoding="bgr8")
+
+        # Run YOLO model on the RGB image
+        detection_image = self._model(self._rgb_image)[0].plot(show=False)
+
+        # Publish the annotated image
+        self._detection_image_pub.publish(self._bridge.cv2_to_imgmsg(detection_image, encoding="bgr8"))
+    #end of rgb_callback
+
 
     # def sync_callback(self, rgb_msg, depth_msg):
     #     self._rgb_image = self._bridge.imgmsg_to_cv2(rgb_msg, desired_encoding="bgr8")
@@ -71,7 +80,7 @@ class ObjectDetector(Node):
     #     detection_image = self._model(self._rgb_image)[0].plot(show=False)
 
     #     self._detections_pub.publish(self._bridge.cv2_to_imgmsg(detection_image, encoding="bgr8"))
-    # #end of sync_callback
+    # # #end of sync_callback
 
 
 def main(args=None):
