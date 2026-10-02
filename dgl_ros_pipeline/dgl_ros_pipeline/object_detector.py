@@ -3,6 +3,7 @@ import rclpy
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from ultralytics import YOLO
+from ultralytics import YOLOWorld
 from sensor_msgs.msg import Image
 from rclpy.qos import qos_profile_sensor_data
 from message_filters import Subscriber, ApproximateTimeSynchronizer
@@ -17,8 +18,12 @@ class ObjectDetector(Node):
         self._bridge = cv_bridge.CvBridge()
 
         # Loading YOLO model
-        self._model = YOLO("yolo26m.pt")
-        self._model.task = "detect"
+        #self._model = YOLO("yolo26m-objv1-150.pt") # Objects 365 data set
+        #self._model = YOLO("yolo26m.pt") # COCO data set
+        self._model = YOLOWorld("yolov8s-world.pt") # World data set
+        self._model.set_classes(["cardboard box", "battery", "bottle", "rod"])
+
+        #self._model.task = "detect"
     
         # Subscribers:
         self.create_subscription(Image, "/camera/camera/color/image_raw", self.image_callback, qos_profile_sensor_data)
@@ -37,6 +42,7 @@ class ObjectDetector(Node):
 
         # Run YOLO model on the converted image
         detections = self._model(cropped)[0].plot(show=False)
+        #detections = self._model.predict(cropped)[0].plot(show=False)
         self.get_logger().info("Object detection completed.")
 
         # Publish the annotated image

@@ -102,6 +102,13 @@ def generate_launch_description():
         output="screen",
     )
 
+    object_detection = Node( # elindítja az object detectiont, ami a kamera topicjára feliratkozik, és a detektált objektumokat publikálja
+        package="dgl_ros_pipeline",
+        executable="object_detector",
+        name="object_detector",
+        output="screen",
+    )
+
     grasp_client = Node( # elindítja a grasp clientet
         package="dgl_ros_pipeline",
         executable="grasp_client",
@@ -125,6 +132,7 @@ def generate_launch_description():
         realsense_launch,
         static_tf,
         rviz2,
+        object_detection,
         # gpd_node,
         grasp_client,
     ])

@@ -66,6 +66,13 @@ def generate_launch_description():
         output="screen",
     )
 
+    object_detection = Node( # elindítja az object detectiont, ami a kamera topicjára feliratkozik, és a detektált objektumokat publikálja
+        package="dgl_ros_pipeline",
+        executable="object_detector",
+        name="object_detector",
+        output="screen",
+    )
+
     gpd_node = Node(
         package="dgl_ros_models",
         executable="gpd",
@@ -104,6 +111,7 @@ def generate_launch_description():
         bag_play,
         static_tf,
         rviz2,
+        object_detection,
         # gpd_node,
         RegisterEventHandler(
             event_handler=OnProcessStart(
