@@ -1,6 +1,5 @@
 # Added some notes based on the ROS tutorials (https://docs.ros.org/en/kilted/Tutorials/)
 import time
-
 import rclpy
 from rclpy.action import ActionClient
 from rclpy.executors import ExternalShutdownException
@@ -8,6 +7,7 @@ from rclpy.node import Node
 from visualization_msgs.msg import Marker, MarkerArray
 from rosidl_runtime_py.convert import message_to_yaml
 from dgl_ros_interfaces.action import SampleGraspPoses
+from vision_msgs.msg import Detection2D, Detection2DArray, ObjectHypothesisWithPose
 
 
 class GraspClient(Node):
@@ -25,6 +25,9 @@ class GraspClient(Node):
 
         # Creating a publisher for visualization markers.
         self._marker_pub = self.create_publisher(MarkerArray, 'grasp_markers', 10)
+
+        # Subscriber to YOLO detection messages (Detection2DArray)
+        self._det_sub = self.create_subscription(Detection2DArray, 'detections', self.detection_callback, 10)
     #end of __init__
 
     #Method waits for the action server to be available, then sends a goal to the server. It returns a future that we can later wait on.
@@ -139,7 +142,22 @@ class GraspClient(Node):
         self._marker_pub.publish(marker_array)   
     #end of publish_grasp_markers
         
-        
+    def detection_callback(self, msg):
+        # Process the incoming detection messages
+        for det in msg.detections:
+            pos_x = det.bbox.center.position.x
+            pos_y = det.bbox.center.position.y
+            size_x = det.bbox.size_x
+            size_y = det.bbox.size_y
+
+        # Logging bounding box measures for debug purposes
+        # self.get_logger().info(
+        # f'{det.results[0].hypothesis.class_id} ({det.results[0].hypothesis.score:.2f}) at ({pos_x:.0f},{pos_y:.0f}) '
+        # f'size {size_x:.0f}x{size_y:.0f}'
+        # )
+        self.send_goal()
+    #end of detection_callback
+
 def main(args=None):
     try:
         with rclpy.init(args=args):
@@ -150,7 +168,7 @@ def main(args=None):
             time.sleep(5)
 
             #future = action_client.send_goal()
-            action_client.send_goal()
+            #action_client.send_goal()
 
             #TODO: handle the result of the action (now we only get data in feedback)
             #rclpy.spin_until_future_complete(action_client, future)

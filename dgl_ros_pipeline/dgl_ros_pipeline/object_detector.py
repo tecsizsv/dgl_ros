@@ -1,5 +1,4 @@
 import cv2
-
 import rclpy
 from rclpy.node import Node
 from rclpy.executors import ExternalShutdownException
