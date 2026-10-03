@@ -28,11 +28,13 @@ class GraspClient(Node):
 
         # Subscriber to YOLO detection messages (Detection2DArray)
         self._det_sub = self.create_subscription(Detection2DArray, 'detections', self.detection_callback, 10)
+
+        # Flags to controll actions
+        self.busy = False
     #end of __init__
 
     #Method waits for the action server to be available, then sends a goal to the server. It returns a future that we can later wait on.
     def send_goal(self):
-        #This method waits for the action server to be available, then sends a goal to the server. It returns a future that we can later wait on.
         goal_msg = SampleGraspPoses.Goal()
         goal_msg.action_name =  'sample_grasp_poses'
 
@@ -41,13 +43,7 @@ class GraspClient(Node):
 
         self.get_logger().info('Sending goal request...')
 
-        # Version 1: without result and feedback callbacks:
-        #return self._action_client.send_goal_async(goal_msg)
-        
-        # Version 2: without result callbacks (no feedback callbacks):
-        #self._send_goal_future = self._action_client.send_goal_async(goal_msg)
-
-        # Version 3: with result and feedback callbacks:      
+        # Async callback      
         self._send_goal_future = self._action_client.send_goal_async(goal_msg, feedback_callback=self.feedback_callback)
 
         self._send_goal_future.add_done_callback(self.goal_response_callback)
@@ -58,10 +54,11 @@ class GraspClient(Node):
         goal_handle = future.result()
         if not goal_handle.accepted:
             self.get_logger().info('Goal rejected :(')
+            self.busy = False
             return
 
-        self.get_logger().info('Goal accepted :)')
-
+        self.get_logger().info('Goal accepted, waiting for result :)')
+        
         self._get_result_future = goal_handle.get_result_async()
         self._get_result_future.add_done_callback(self.get_result_callback)
     #end of goal_response_callback
@@ -69,17 +66,19 @@ class GraspClient(Node):
     #Method is called when the action server sends the result of the goal.
     def get_result_callback(self, future):
         result = future.result().result
+
         self.get_logger().info(message_to_yaml(result))
+
         self.publish_grasp_markers(result.grasp_candidates)
-        rclpy.shutdown()
+
+        self.busy = False
     #end of get_result_callback
 
     #This method is called when the action server sends feedback about the goal.
     def feedback_callback(self, feedback_msg):
         feedback = feedback_msg.feedback
+
         self.get_logger().info(message_to_yaml(feedback))
-        # Publish grasp markers for visualization in RViz.
-        #self.publish_grasp_markers(feedback.grasp_candidates)
     #end of feedback_callback
 
     #This method creates a marker for a grasp, it's a tool used only inside this class
@@ -143,6 +142,11 @@ class GraspClient(Node):
     #end of publish_grasp_markers
         
     def detection_callback(self, msg):
+        if self.busy:
+            return
+
+        self.busy = True
+
         # Process the incoming detection messages
         for det in msg.detections:
             pos_x = det.bbox.center.position.x
@@ -155,6 +159,7 @@ class GraspClient(Node):
         # f'{det.results[0].hypothesis.class_id} ({det.results[0].hypothesis.score:.2f}) at ({pos_x:.0f},{pos_y:.0f}) '
         # f'size {size_x:.0f}x{size_y:.0f}'
         # )
+
         self.send_goal()
     #end of detection_callback
 
