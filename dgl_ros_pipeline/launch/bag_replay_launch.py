@@ -24,7 +24,7 @@ def generate_launch_description():
     rviz_config_dir = get_package_share_directory('dgl_ros_pipeline')
     gpd_config_dir = get_package_share_directory('dgl_ros_models')
 
-    rosbag_name_arg = DeclareLaunchArgument('rosbag_name', default_value='rosbag_comp_bottle', description='Name of the rosbag to play')
+    rosbag_name_arg = DeclareLaunchArgument('rosbag_name', default_value='cam_battery_pose2', description='Name of the rosbag to play')
     bag_play = ExecuteProcess(
         cmd=[
             "ros2", "bag", "play",

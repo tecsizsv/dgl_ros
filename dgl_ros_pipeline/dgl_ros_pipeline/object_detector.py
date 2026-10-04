@@ -27,7 +27,8 @@ class ObjectDetector(Node):
         # Loading YOLO model
         #self._model = YOLO("yolo26m-objv1-150.pt") # Objects 365 data set
         #self._model = YOLO("yolo26m.pt") # COCO data set
-        self._model = YOLOWorld("yolov8s-world.pt") # World data set
+        #self._model = YOLOWorld("yolov8s-world.pt") # World data set
+        self._model = YOLO("yolov8s-world.pt") # World data set
         self._model.set_classes(["cardboard box", "battery", "bottle", "rod"])
 
     

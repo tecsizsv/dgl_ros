@@ -35,6 +35,8 @@ class GraspClient(Node):
 
     #Method waits for the action server to be available, then sends a goal to the server. It returns a future that we can later wait on.
     def send_goal(self):
+        self.get_logger().info(f'send_goal starts running. Busy = {self.busy}')
+
         goal_msg = SampleGraspPoses.Goal()
         goal_msg.action_name =  'sample_grasp_poses'
 
@@ -47,6 +49,8 @@ class GraspClient(Node):
         self._send_goal_future = self._action_client.send_goal_async(goal_msg, feedback_callback=self.feedback_callback)
 
         self._send_goal_future.add_done_callback(self.goal_response_callback)
+
+        self.get_logger().info(f'send_goal ends running. Busy = {self.busy}')
     #end of send_goal
 
     #Method is called when the action server responds to the goal request. It checks if the goal was accepted or rejected.
@@ -138,7 +142,7 @@ class GraspClient(Node):
             marker = self._make_marker(grasp_candidates[i], i)
             marker_array.markers.append(marker)
 
-        self._marker_pub.publish(marker_array)   
+        self._marker_pub.publish(marker_array)  
     #end of publish_grasp_markers
         
     def detection_callback(self, msg):
@@ -146,6 +150,7 @@ class GraspClient(Node):
             return
 
         self.busy = True
+
 
         # Process the incoming detection messages
         for det in msg.detections:
@@ -161,6 +166,7 @@ class GraspClient(Node):
         # )
 
         self.send_goal()
+
     #end of detection_callback
 
 def main(args=None):
@@ -175,8 +181,6 @@ def main(args=None):
             #future = action_client.send_goal()
             #action_client.send_goal()
 
-            #TODO: handle the result of the action (now we only get data in feedback)
-            #rclpy.spin_until_future_complete(action_client, future)
             rclpy.spin(action_client)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
