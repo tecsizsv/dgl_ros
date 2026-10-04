@@ -9,6 +9,7 @@ from rosidl_runtime_py.convert import message_to_yaml
 from dgl_ros_interfaces.action import SampleGraspPoses
 from vision_msgs.msg import Detection2D, Detection2DArray, ObjectHypothesisWithPose
 from action_msgs.msg import GoalStatus
+from sensor_msgs.msg import CameraInfo
 
 class GraspClient(Node):
 
@@ -31,12 +32,28 @@ class GraspClient(Node):
 
         # Flags to controll actions
         self.busy = False
+        
+        #---Some given paramters---
+        #camera focal lenght in pixel
+        self.fx = 922.5073852539062
+        self.fy = 920.6383056640625
+        # optical center of the image in pixel
+        self.cx = 645.260498046875 
+        self.cy = 354.32769775390625
+        # camera distance from the table in meter
+        self.cam_to_table = 1.95
+        # Workspace boundaries on Z-axis in meter
+        self.z_min = 0.0
+        self.z_max = 1.75
+        # How much bigger should the workspace be than the boudingbox in meter
+        self.margin = 0.05 # 5 cm
     #end of __init__
 
     #Method waits for the action server to be available, then sends a goal to the server. It returns a future that we can later wait on.
-    def send_goal(self):
+    def send_goal(self, workspace):
         goal_msg = SampleGraspPoses.Goal()
         goal_msg.action_name =  'sample_grasp_poses'
+        goal_msg.workspace = workspace
 
         self.get_logger().info('Waiting for action server...')
         self._action_client.wait_for_server()
@@ -158,23 +175,36 @@ class GraspClient(Node):
         if self.busy:
             return
 
-        self.busy = True
-
-        # Process the incoming detection messages
-        for det in msg.detections:
-            pos_x = det.bbox.center.position.x
-            pos_y = det.bbox.center.position.y
-            size_x = det.bbox.size_x
-            size_y = det.bbox.size_y
+        # # Process the incoming detection messages
+        # for det in msg.detections:
+        #     pos_x = det.bbox.center.position.x
+        #     pos_y = det.bbox.center.position.y
+        #     size_x = det.bbox.size_x
+        #     size_y = det.bbox.size_y
 
         # Logging bounding box measures for debug purposes
         # self.get_logger().info(
         # f'{det.results[0].hypothesis.class_id} ({det.results[0].hypothesis.score:.2f}) at ({pos_x:.0f},{pos_y:.0f}) '
         # f'size {size_x:.0f}x{size_y:.0f}'
         # )
+        
+        det = msg.detections[0]
 
-        self.send_goal()
+        workspace = self._calc_workspace(det.bbox)
+
+        self.busy = True
+        self.send_goal(workspace)
     #end of detection_callback
+
+    #  This method converts the boundingbox from pixels to meters thus a workspace is calculated
+    def _calc_workspace(self, bbox):
+        bbox_center_x = bbox.center.position.x
+        bbox_center_y = bbox.center.position.y
+        bbox_width = bbox.size_x
+        bbox_height = bbox.size_y
+        workspace 
+        return workspace
+    #end of _calc_workspace
 
 def main(args=None):
     try:
