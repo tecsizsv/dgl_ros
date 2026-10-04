@@ -35,8 +35,6 @@ class GraspClient(Node):
 
     #Method waits for the action server to be available, then sends a goal to the server. It returns a future that we can later wait on.
     def send_goal(self):
-        self.get_logger().info(f'send_goal starts running. Busy = {self.busy}')
-
         goal_msg = SampleGraspPoses.Goal()
         goal_msg.action_name =  'sample_grasp_poses'
 
@@ -50,7 +48,6 @@ class GraspClient(Node):
 
         self._send_goal_future.add_done_callback(self.goal_response_callback)
 
-        self.get_logger().info(f'send_goal ends running. Busy = {self.busy}')
     #end of send_goal
 
     #Method is called when the action server responds to the goal request. It checks if the goal was accepted or rejected.
@@ -151,7 +148,6 @@ class GraspClient(Node):
 
         self.busy = True
 
-
         # Process the incoming detection messages
         for det in msg.detections:
             pos_x = det.bbox.center.position.x
@@ -166,7 +162,6 @@ class GraspClient(Node):
         # )
 
         self.send_goal()
-
     #end of detection_callback
 
 def main(args=None):

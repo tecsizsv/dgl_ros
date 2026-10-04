@@ -106,6 +106,14 @@ def generate_launch_description():
     #         )
     #     ],
     # )
+
+    grasp_client = Node( # elindítja a grasp clientet
+        package="dgl_ros_pipeline",
+        executable="grasp_client",
+        name="grasp_client",
+        output="screen",
+    )
+    
     return LaunchDescription([
         rosbag_name_arg,
         bag_play,
@@ -121,5 +129,6 @@ def generate_launch_description():
                     TimerAction(period=15.0, actions=[gpd_node]),
                 ],
             )
-        ),  
+        ),
+        grasp_client,
     ])
