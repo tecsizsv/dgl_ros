@@ -1,10 +1,13 @@
-# goal sent to client
+# goal sent from client to server
 string action_name
+# size of workspace as in config file based on bounding box
+#(xmin xmax ymin ymax zmin zmax)
+float64[6] workspace
 ---
-# result sent to server
+# result sent from server to client
 # grasp poses
 geometry_msgs/PoseStamped[] grasp_candidates
 # cost of each grasp
 float64[] costs
 ---
-# feedback sent to server
+# feedback sent from server to client
