@@ -8,7 +8,7 @@ from visualization_msgs.msg import Marker, MarkerArray
 from rosidl_runtime_py.convert import message_to_yaml
 from dgl_ros_interfaces.action import SampleGraspPoses
 from vision_msgs.msg import Detection2D, Detection2DArray, ObjectHypothesisWithPose
-
+from action_msgs.msg import GoalStatus
 
 class GraspClient(Node):
 
@@ -73,6 +73,18 @@ class GraspClient(Node):
         self.publish_grasp_markers(result.grasp_candidates)
 
         self.busy = False
+        #Alternative solution with some error handling
+        # try:
+        #     result = future.result().result
+        #     status = future.result().status
+        #     if status == GoalStatus.STATUS_SUCCEEDED:
+        #         self.get_logger().info('Goal succeeded!')
+        #         self.get_logger().info(message_to_yaml(result))
+        #         self.publish_grasp_markers(result.grasp_candidates)
+        #     else:
+        #         self.get_logger().info('Goal failed with status: {0}'.format(status))
+        # finally:
+        #     self.busy = False
     #end of get_result_callback
 
     #This method is called when the action server sends feedback about the goal.
