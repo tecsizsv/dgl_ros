@@ -32,8 +32,9 @@ class GraspClient(Node):
 
         # Flags to controll actions
         self.busy = False
-        
-        #---Some given paramters---
+
+        #---Some parameters from K matrix of Camera---
+        # Can read it from /camera/camera/color/camera_info
         #camera focal lenght in pixel
         self.fx = 922.5073852539062
         self.fy = 920.6383056640625
@@ -193,6 +194,7 @@ class GraspClient(Node):
         workspace = self._calc_workspace(det.bbox)
 
         self.busy = True
+        self.get_logger().info(f'workspace = {workspace}')
         self.send_goal(workspace)
     #end of detection_callback
 
@@ -202,7 +204,45 @@ class GraspClient(Node):
         bbox_center_y = bbox.center.position.y
         bbox_width = bbox.size_x
         bbox_height = bbox.size_y
-        workspace 
+
+        # Calculating the sides of the boundingbox
+        u_min =  bbox_center_x-(bbox_width/2)
+        u_max = u_min + bbox_width
+        v_min = bbox_center_y-(bbox_height/2)
+        v_max = v_min + bbox_height
+
+        # Converting sides from 2D to 3D: P_cam = K^-1 * p
+        # K: 922.5073852539062  0.0                645.260498046875
+        #    0.0                920.6383056640625  354.32769775390625
+        #    0.0                0.0                1.0
+        # p = [u, v, 1]' P_cam = [x, y, z]'  
+        depth = self.cam_to_table
+        x_min = (u_min - self.cx) * depth / self.fx
+        x_max = (u_max - self.cx) * depth / self.fx
+        y_min = (v_min - self.cy) * depth/ self.fy
+        y_max = (v_max - self.cy) * depth/ self.fy
+        z = depth
+
+        # Transform from camera_color_optical_frame to world: P = T * P_cam (adding 1 at the end)
+        # T: -0.009 -1.000  0.003  0.000
+        #    -1.000  0.009 -0.007  0.015
+        #     0.007 -0.003 -1.000  1.950
+        #     0.000  0.000  0.000  1.000
+        # First calculate with the min values, and after that with max values
+        x_a = (-0.009 * x_min - 1 * y_min + 0.003 * z + 0.0) 
+        x_b = (-0.009 * x_max - 1 * y_max + 0.003 * z + 0.0) 
+        y_a = (-1.0 * x_min + 0.009 * y_min - 0.007 * z + 0.015) 
+        y_b = (-1.0 * x_max + 0.009 * y_max - 0.007 * z + 0.015) 
+
+        x_world_min = min(x_a, x_b) - self.margin
+        x_world_max = max(x_a, x_b) + self.margin
+        y_world_min = min(y_a, y_b) - self.margin
+        y_world_max = max(y_a, y_b) + self.margin
+        z_world_min = self.z_min
+        z_world_max = self.z_max
+
+        workspace = [x_world_min, x_world_max, y_world_min, y_world_max, z_world_min, z_world_max]
+
         return workspace
     #end of _calc_workspace
 
