@@ -188,8 +188,13 @@ class GraspClient(Node):
         # f'{det.results[0].hypothesis.class_id} ({det.results[0].hypothesis.score:.2f}) at ({pos_x:.0f},{pos_y:.0f}) '
         # f'size {size_x:.0f}x{size_y:.0f}'
         # )
+
+        # Check if there is a message
+        if not msg:
+            return
         
         det = msg.detections[0]
+
 
         workspace = self._calc_workspace(det.bbox)
 
