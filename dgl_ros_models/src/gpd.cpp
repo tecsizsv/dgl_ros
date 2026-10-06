@@ -7,6 +7,7 @@
 #include <dgl_ros/util/cloud.hpp>
 #include <dgl_ros_models/gpd.hpp>
 #include <gpd/grasp_detector.h>
+#include <pcl/filters/crop_box.h>
 
 using dgl_ros_interfaces::action::SampleGraspPoses;
 using sensor_msgs::msg::PointCloud2;
@@ -35,8 +36,10 @@ Gpd::Gpd(rclcpp::NodeOptions& options) : GpdAgent(options)
 
 SampleGraspPoses::Result::SharedPtr Gpd::actionFromObs(std::shared_ptr<GpdObserver> observer, GoalSharedPtr goal)
 {
+  const auto& workspace = goal->workspace; // workspace = (xmin xmax ymin ymax zmin zmax)
+
   RCLCPP_INFO(this->get_logger(), "New action received...");
-  RCLCPP_INFO_STREAM(this->get_logger(), "Workspace size: " << goal->workspace.size());
+  RCLCPP_INFO_STREAM(this->get_logger(), "Workspace size: " << workspace.size());
   
   // Get the latest observation
   auto [id, msg] = observer->observe();
@@ -45,11 +48,52 @@ SampleGraspPoses::Result::SharedPtr Gpd::actionFromObs(std::shared_ptr<GpdObserv
   PointCloudRGB cloud;
   pcl::fromROSMsg(*msg, cloud);
   pcl::io::savePCDFileASCII ("temp_ros_cloud.pcd", cloud); // Save the point cloud to a PCD file
+  
+  // Convert to RGBA for cropping and GPD
+  auto grasp_cloud = std::make_shared<PointCloudRGBA>();
+  pcl::copyPointCloud(cloud, *grasp_cloud);
+
+  if(workspace.size() == 6)
+  {
+    // Workspace corners in the world frame (from the action goal)
+    Eigen::Vector3d ws_min_world(workspace[0], workspace[2], workspace[4]);
+    Eigen::Vector3d ws_max_world(workspace[1], workspace[3], workspace[5]);
+
+    // world -> camera transform
+    const Eigen::Isometry3d tf_src_world = tf_world_src_.inverse();
+
+    // Corners in the camera frame
+    Eigen::Vector3d ws_corner_a_cam = tf_src_world * ws_min_world;
+    Eigen::Vector3d ws_corner_b_cam = tf_src_world * ws_max_world;
+
+    // Sort vectors
+    Eigen::Vector3d ws_min_cam = ws_corner_a_cam.cwiseMin(ws_corner_b_cam);
+    Eigen::Vector3d ws_max_cam = ws_corner_a_cam.cwiseMax(ws_corner_b_cam);
+    RCLCPP_INFO_STREAM(this->get_logger(), "ws_min_cam: " << ws_min_cam.transpose() << " | ws_max_cam: " << ws_max_cam.transpose());
+
+    // Crop the point cloud to the workspace
+    pcl::CropBox<pcl::PointXYZRGBA> crop_box;
+    crop_box.setMin(ws_min_cam.cast<float>().homogeneous());
+    crop_box.setMax(ws_max_cam.cast<float>().homogeneous());
+    RCLCPP_INFO_STREAM(this->get_logger(), "Cloud size before crop: " << grasp_cloud->size());
+
+    crop_box.setInputCloud(grasp_cloud);
+    crop_box.filter(*grasp_cloud);
+    RCLCPP_INFO_STREAM(this->get_logger(), "Cloud size after crop: "  << grasp_cloud->size());
+
+    if(grasp_cloud->empty())
+    {
+      RCLCPP_WARN(this->get_logger(), "No points left after cropping to workspace, skipping grasp detection.");
+      return std::make_shared<SampleGraspPoses::Result>();
+    }
+  }
+  else
+  {
+    RCLCPP_WARN_STREAM(this->get_logger(), "Workspace has " << workspace.size() << " values, expected 6. Skipping crop."); 
+  }
 
   // Convert to GPD.
   RCLCPP_INFO(this->get_logger(), "Preprocess pointcloud...");
-  auto grasp_cloud = std::make_shared<PointCloudRGBA>();
-  pcl::copyPointCloud(cloud, *grasp_cloud);
   Eigen::Matrix3Xd camera_view_point(3, 1);
   gpd::util::Cloud gpd_cloud(grasp_cloud, 0, camera_view_point);
   gpd_grasp_detector_->preprocessPointCloud(gpd_cloud);
