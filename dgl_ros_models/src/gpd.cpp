@@ -13,29 +13,38 @@ using sensor_msgs::msg::PointCloud2;
 
 typedef pcl::PointCloud<pcl::PointXYZRGB> PointCloudRGB;
 typedef pcl::PointCloud<pcl::PointXYZRGBA> PointCloudRGBA;
+
 namespace dgl_models
 {
 
 Gpd::Gpd(rclcpp::NodeOptions& options) : GpdAgent(options)
 {
   tf_lookup_ = std::make_unique<dgl::util::TransformLookup>(this);
+
   this->declare_parameter("tf_timeout_seconds", 10);
   this->declare_parameter("gpd_config_path", "/simply_ws/src/dgl_ros/dgl_ros_models/config/gpd_config.yaml");
+
   gpd_grasp_detector_ = std::make_unique<gpd::GraspDetector>(this->get_parameter("gpd_config_path").as_string());
-  tf_lookup_->get_tf_isometry(this->get_parameter("world_frame").as_string(),
-                              this->get_parameter("src_frame0").as_string(),
-                              this->get_parameter("tf_timeout_seconds").as_int(), tf_world_src_);
+
+  tf_lookup_->get_tf_isometry(
+    this->get_parameter("world_frame").as_string(),
+    this->get_parameter("src_frame0").as_string(),
+    this->get_parameter("tf_timeout_seconds").as_int(),
+    tf_world_src_);
 }
 
 SampleGraspPoses::Result::SharedPtr Gpd::actionFromObs(std::shared_ptr<GpdObserver> observer, GoalSharedPtr goal)
 {
-    RCLCPP_INFO(this->get_logger(), "New action received...");
-    RCLCPP_INFO_STREAM(this->get_logger(), "Workspace size: " << goal->workspace.size());
+  RCLCPP_INFO(this->get_logger(), "New action received...");
+  RCLCPP_INFO_STREAM(this->get_logger(), "Workspace size: " << goal->workspace.size());
+  
+  // Get the latest observation
   auto [id, msg] = observer->observe();
+
   // Convert to PCL.
   PointCloudRGB cloud;
   pcl::fromROSMsg(*msg, cloud);
-  pcl::io::savePCDFileASCII ("temp_ros_cloud.pcd", cloud); //---- Save the point cloud to a PCD file
+  pcl::io::savePCDFileASCII ("temp_ros_cloud.pcd", cloud); // Save the point cloud to a PCD file
 
   // Convert to GPD.
   RCLCPP_INFO(this->get_logger(), "Preprocess pointcloud...");
@@ -45,24 +54,23 @@ SampleGraspPoses::Result::SharedPtr Gpd::actionFromObs(std::shared_ptr<GpdObserv
   gpd::util::Cloud gpd_cloud(grasp_cloud, 0, camera_view_point);
   gpd_grasp_detector_->preprocessPointCloud(gpd_cloud);
 
-  std::vector<std::unique_ptr<gpd::candidate::Hand>> grasps;  // detect grasp poses                   // detect grasps
-                                                              // in the point cloud
-
-
-
+  // Detect grasps
   RCLCPP_INFO(this->get_logger(), "Starting grasp detection...");
-  grasps = gpd_grasp_detector_->detectGrasps(gpd_cloud);      // detect grasp poses
+  std::vector<std::unique_ptr<gpd::candidate::Hand>> grasps;  
+  grasps = gpd_grasp_detector_->detectGrasps(gpd_cloud);  // detect grasp poses in the point cloud
+  
   std::vector<unsigned int> grasp_ids;
   for (unsigned int i = 0; i < grasps.size(); i++)
   {
     grasp_ids.push_back(i);
   }
-
   RCLCPP_INFO_STREAM(this->get_logger(), "Detected " << grasps.size() << " grasps.");
+
+  // Transform grasps to world frame and build result
   auto result = std::make_shared<SampleGraspPoses::Result>();
   for (auto id : grasp_ids)
   {
-    // transform grasp from camera optical link into frame_id
+    // Transform grasp from camera optical link into frame_id
     const Eigen::Isometry3d transform_opt_grasp =
         Eigen::Translation3d(grasps.at(id)->getPosition()) * Eigen::Quaterniond(grasps.at(id)->getOrientation());
 
@@ -70,7 +78,7 @@ SampleGraspPoses::Result::SharedPtr Gpd::actionFromObs(std::shared_ptr<GpdObserv
     const Eigen::Vector3d trans = transform_base_grasp.translation();
     const Eigen::Quaterniond rot(transform_base_grasp.rotation());
 
-    // convert back to PoseStamped
+    // Convert back to PoseStamped
     geometry_msgs::msg::PoseStamped grasp_pose;
     grasp_pose.header.frame_id = "world";
     grasp_pose.pose.position.x = trans.x();
@@ -98,6 +106,7 @@ std::unique_ptr<PointCloud2> Gpd::obsFromSrcs(std::shared_ptr<PointCloud2> msg)
   // Convert to PCL
   auto cloud = std::make_shared<PointCloudRGB>();
   pcl::fromROSMsg(*msg, *cloud);
+
   // Segementation works best with XYXRGB
   dgl::util::cloud::removeTable(cloud);
 
@@ -112,7 +121,6 @@ int main(int argc, char** argv)
 {
   rclcpp::init(argc, argv);
   rclcpp::NodeOptions options;
-  ;
   options.allow_undeclared_parameters(true);
   dgl_models::Gpd server(options);
   server.run();

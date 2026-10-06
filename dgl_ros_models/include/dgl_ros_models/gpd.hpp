@@ -15,25 +15,25 @@
 namespace dgl_models
 {
 
-typedef dgl::Observer<sensor_msgs::msg::PointCloud2, sensor_msgs::msg::PointCloud2> GpdObserver;
-typedef dgl::Agent<sensor_msgs::msg::PointCloud2, dgl_ros_interfaces::action::SampleGraspPoses,
-                   sensor_msgs::msg::PointCloud2>
-    GpdAgent;
+typedef dgl::Observer<sensor_msgs::msg::PointCloud2, sensor_msgs::msg::PointCloud2>
+  GpdObserver;
+typedef dgl::Agent<sensor_msgs::msg::PointCloud2, dgl_ros_interfaces::action::SampleGraspPoses, sensor_msgs::msg::PointCloud2>
+  GpdAgent;
+
 class Gpd : public GpdAgent
 {
 public:
   Gpd(rclcpp::NodeOptions& options);
 
-  dgl_ros_interfaces::action::SampleGraspPoses::Result::SharedPtr
-  actionFromObs(std::shared_ptr<GpdObserver> observer, GoalSharedPtr goal) override;
+  dgl_ros_interfaces::action::SampleGraspPoses::Result::SharedPtr 
+    actionFromObs(std::shared_ptr<GpdObserver> observer, GoalSharedPtr goal) override;
 
-  sensor_msgs::msg::PointCloud2::UniquePtr obsFromSrcs(std::shared_ptr<sensor_msgs::msg::PointCloud2> msg) override;
-  
+  sensor_msgs::msg::PointCloud2::UniquePtr
+    obsFromSrcs(std::shared_ptr<sensor_msgs::msg::PointCloud2> msg) override;
+
 private:
   std::unique_ptr<gpd::GraspDetector> gpd_grasp_detector_;
   Eigen::Isometry3d tf_world_src_;
   std::unique_ptr<dgl::util::TransformLookup> tf_lookup_;
-
-
 };
 }  // namespace dgl_models

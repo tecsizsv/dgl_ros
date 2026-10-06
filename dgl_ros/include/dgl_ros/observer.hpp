@@ -10,6 +10,7 @@
 #include <memory>
 #include <shared_mutex>
 #include <dgl_ros/util/generic_subscription.hpp>
+
 namespace dgl
 {
 /**
@@ -19,7 +20,6 @@ namespace dgl
  * @tparam ObsT
  * @tparam SrcTs
  */
-
 template <typename ObsT, typename... SrcTs>
 class Observer : public rclcpp::Node
 {
@@ -45,16 +45,24 @@ public:
       recieved_first_src_msgs_[i] = false;
     }
 
+    // Subscriptions to the source topics
     auto src_sub_group = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
-    src_subs_ = dgl::util::addSubscriptions(this, src_topics, src_sub_group, last_src_msgs_recieved_,
-                                            recieved_first_src_msgs_, std::index_sequence_for<SrcTs...>{});
+    src_subs_ = dgl::util::addSubscriptions(
+      this, 
+      src_topics, 
+      src_sub_group, 
+      last_src_msgs_recieved_,
+      recieved_first_src_msgs_, 
+      std::index_sequence_for<SrcTs...>{});
 
-    // For debugging.
+    // Publisher for debugging: periodically republishes the latest observation
     auto pub_group = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
     rclcpp::PublisherOptions pub_options;
     pub_options.callback_group = pub_group;
     obs_pub_ = this->create_publisher<ObsT>("observation", 10, pub_options);
-    pub_timer_ = this->create_wall_timer(std::chrono::milliseconds(100), [this]() -> void {
+
+    pub_timer_ = this->create_wall_timer(std::chrono::milliseconds(100), [this]() -> void 
+    {
       if (observation_cache_.size() > 0 && this->get_parameter("publish_observation").as_bool())
       {
         ObsT obs = *observation_cache_.back();
@@ -79,7 +87,9 @@ public:
       RCLCPP_INFO_ONCE(this->get_logger(), "Observer is waiting for observation.");
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
+
     auto observation = std::apply(obs_from_srcs_function_, last_src_msgs_recieved_);
+
     std::unique_lock lock(obs_mutex_);
     if (observation_cache_.size() == this->get_parameter("cache_size").as_int())
     {
@@ -89,6 +99,7 @@ public:
     observation_cache_.push_back(std::move(observation));
     return std::pair(observation_cache_.size() - 1, observation_cache_.back().get());
   }
+
   /**
    * @brief
    *
@@ -139,16 +150,19 @@ private:
     return std::all_of(recieved_first_src_msgs_.begin(), recieved_first_src_msgs_.end(), [](bool b) { return b; });
   }
 
+  // Subscriptions and the last received source messages
   std::tuple<std::shared_ptr<rclcpp::Subscription<SrcTs>>...> src_subs_;
   std::tuple<std::shared_ptr<SrcTs>...> last_src_msgs_recieved_;  // The last set of src messages revieved.
   std::array<bool, sizeof...(SrcTs)> recieved_first_src_msgs_;    // True if the first message has been recieved.
 
+  // Observation generation and cache
   std::function<std::unique_ptr<ObsT>(std::shared_ptr<SrcTs>...)> obs_from_srcs_function_;
   mutable std::shared_mutex obs_mutex_;
   // List of last `cache_size` observations made in reverse chronological order.
   std::deque<std::unique_ptr<ObsT>> observation_cache_ RCPPUTILS_TSA_GUARDED_BY(obs_mutex_);
   int num_pops_ = 0;
 
+  // Debug publisher
   typename rclcpp::Publisher<ObsT>::SharedPtr obs_pub_;
   rclcpp::TimerBase::SharedPtr pub_timer_;
 };

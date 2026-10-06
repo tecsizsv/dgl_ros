@@ -10,7 +10,6 @@
 
 namespace dgl
 {
-
 /**
  * @brief This class is responsible for recieving observations and generatoring
  * actions.
@@ -23,7 +22,8 @@ template <typename ObsT, typename ActionT, typename... SrcTs>
 class Agent : public rclcpp::Node
 {
 public:
-  using GoalSharedPtr = std::shared_ptr<const typename ActionT::Goal>;
+  typedef std::shared_ptr<const typename ActionT::Goal> GoalSharedPtr;
+
   /**
    * @brief Construct a new Agent object
    *
@@ -32,7 +32,6 @@ public:
    */
   Agent(rclcpp::NodeOptions& options)
     : Node("agent", options)
-
   {
     this->declare_parameter("world_frame", "world");
     for (int i = 0; i < sizeof...(SrcTs); i++)

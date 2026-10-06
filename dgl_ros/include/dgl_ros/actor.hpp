@@ -18,25 +18,27 @@ template <typename ActionT>
 class Actor : public rclcpp::Node
 {
 public:
-  using GoalSharedPtr = std::shared_ptr<const typename ActionT::Goal>;
+  typedef std::shared_ptr<const typename ActionT::Goal> GoalSharedPtr;
+  
   /**
    * @brief Construct a new Actor object
    *
    * @param options
    * @param action_generator_func
    */
-  Actor(const rclcpp::NodeOptions& options,
-        std::function<typename ActionT::Result::SharedPtr(GoalSharedPtr)> action_generator_func)
+  Actor(const rclcpp::NodeOptions& options, std::function<typename ActionT::Result::SharedPtr(GoalSharedPtr)> action_generator_func)
     : Node("actor", options), action_generator_func_(action_generator_func)
   {
     this->declare_parameter("action_topic", "sample_grasp_poses");
     RCLCPP_INFO(this->get_logger(), "Grasp detection action server ready");
 
     namespace sp = std::placeholders;
-    action_server_ = rclcpp_action::create_server<ActionT>(this,  this->get_parameter("action_topic").as_string(), 
-    std::bind(&Actor::handle_goal, this, sp::_1, sp::_2),
-                                                    std::bind(&Actor::handle_cancel, this, sp::_1),
-                                                    std::bind(&Actor::handle_accepted, this, sp::_1));
+    action_server_ = rclcpp_action::create_server<ActionT>(
+      this,
+      this->get_parameter("action_topic").as_string(), 
+      std::bind(&Actor::handle_goal, this, sp::_1, sp::_2),
+      std::bind(&Actor::handle_cancel, this, sp::_1),
+      std::bind(&Actor::handle_accepted, this, sp::_1));
   }
 
 private:
@@ -53,18 +55,21 @@ private:
   {
     RCLCPP_INFO(this->get_logger(), "New goal accepted");
     // This needs to return quickly to avoid blocking the executor, so spin up a new thread.
-    auto publish_grasps_callback = [this](const GoalHandleSharedPtr& goal_handle) {
+    auto publish_grasps_callback = [this](const GoalHandleSharedPtr& goal_handle)
+    {
       goal_handle->succeed(action_generator_func_(goal_handle->get_goal()));
     };
     std::thread{ publish_grasps_callback, goal_handle }.detach();
   }
 
   /**
-   * @brief Called every time feedback is received for the goal
-   * @param feedback - pointer to the feedback message
+   * @brief Called when a new goal request arrives. Decides whether to accept it.
+   * 
+   * @param uuid  Unique ID of the goal request
+   * @param goal  Goal sent by the client
+   * @return ACCEPT_AND_EXECUTE, so every goal is accepted
    */
-  rclcpp_action::GoalResponse handle_goal(const rclcpp_action::GoalUUID& uuid,
-                                          std::shared_ptr<const typename ActionT::Goal> goal)
+  rclcpp_action::GoalResponse handle_goal(const rclcpp_action::GoalUUID& uuid, std::shared_ptr<const typename ActionT::Goal> goal)
   {
     (void)uuid;
     (void)goal;
