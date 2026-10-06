@@ -23,6 +23,7 @@ template <typename ObsT, typename ActionT, typename... SrcTs>
 class Agent : public rclcpp::Node
 {
 public:
+  using GoalSharedPtr = std::shared_ptr<const typename ActionT::Goal>;
   /**
    * @brief Construct a new Agent object
    *
@@ -41,7 +42,7 @@ public:
     
     const auto obs_from_srcs_callback = [this](std::shared_ptr<SrcTs>... src_msgs) { return obsFromSrcs(src_msgs...); };
     observer_ = std::make_shared<Observer<ObsT, SrcTs...>>(options, obs_from_srcs_callback);
-    actor_ = std::make_shared<Actor<ActionT>>(options, std::bind(&Agent::actionFromObs, this, observer_));
+    actor_ = std::make_shared<Actor<ActionT>>(options, std::bind(&Agent::actionFromObs, this, observer_, std::placeholders::_1));
   }
 
   virtual void run()
@@ -56,9 +57,10 @@ public:
    * @brief Function that generates an action from an observer.
    *
    * @param observer  Observer that can be called multiple times to generate observations.
+   * @param goal  Goal sent by the client, contains the workspace
    * @return ActionT::Result::SharedPtr
    */
-  virtual typename ActionT::Result::SharedPtr actionFromObs(std::shared_ptr<Observer<ObsT, SrcTs...>> observer) = 0;
+  virtual typename ActionT::Result::SharedPtr actionFromObs(std::shared_ptr<Observer<ObsT, SrcTs...>> observer, GoalSharedPtr goal) = 0;
 
   /**
    * @brief Function that generates an observation from a set of source messages.

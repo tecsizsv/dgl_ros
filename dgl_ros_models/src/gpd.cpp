@@ -27,9 +27,10 @@ Gpd::Gpd(rclcpp::NodeOptions& options) : GpdAgent(options)
                               this->get_parameter("tf_timeout_seconds").as_int(), tf_world_src_);
 }
 
-SampleGraspPoses::Result::SharedPtr Gpd::actionFromObs(std::shared_ptr<GpdObserver> observer)
+SampleGraspPoses::Result::SharedPtr Gpd::actionFromObs(std::shared_ptr<GpdObserver> observer, GoalSharedPtr goal)
 {
     RCLCPP_INFO(this->get_logger(), "New action received...");
+    RCLCPP_INFO_STREAM(this->get_logger(), "Workspace size: " << goal->workspace.size());
   auto [id, msg] = observer->observe();
   // Convert to PCL.
   PointCloudRGB cloud;

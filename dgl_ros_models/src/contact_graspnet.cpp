@@ -47,7 +47,7 @@ ContactGraspnet::ContactGraspnet(rclcpp::NodeOptions& options) : CgnAgent(option
   mp_gil_release_ = std::make_unique<py::gil_scoped_release>();
 }
 
-SampleGraspPoses::Result::SharedPtr ContactGraspnet::actionFromObs(std::shared_ptr<CgnObserver> observer)
+SampleGraspPoses::Result::SharedPtr ContactGraspnet::actionFromObs(std::shared_ptr<CgnObserver> observer, GoalSharedPtr goal)
 {
   auto success_threshold = this->get_parameter("success_threshold").as_double();
   auto visualize = this->get_parameter("visualize").as_bool();
