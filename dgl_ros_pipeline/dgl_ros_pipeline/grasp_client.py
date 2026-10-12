@@ -123,25 +123,24 @@ class GraspClient(Node):
 
     #This method creates a marker for a grasp, it's a tool used only inside this class
     def _make_marker(self, grasp_candidate, marker_id):
-        #start_point = grasp_candidate.pose.position - hand_depth * grasp_candidate.approach
-        #end_point = grasp_candidate.pose.position
         marker = Marker()
         marker.header.frame_id = grasp_candidate.header.frame_id
         marker.header.stamp = self.get_clock().now().to_msg()
-
-        # set shape, Arrow: 0; Cube: 1 ; Sphere: 2 ; Cylinder: 3
-        marker.type = 0
-        marker.id = marker_id
         marker.ns = 'grasp_candidates'
-
+        marker.id = marker_id
+        # set shape: ARROW, CUBE, SPHERE, CYLINDER, LINE_STRIP, LINE_LIST, CUBE_LIST, SPHERE_LIST, POINTS, TEXT_VIEW_FACING, MESH_RESOURCE, TRIANGLE_LIST
+        marker.type = Marker.MESH_RESOURCE
+        marker.mesh_resource = "package://dgl_ros_pipeline/meshes/rg2_tool.stl"
+        marker.mesh_use_embedded_materials = False
         marker.action = Marker.ADD
 
-        #marker.points = [start_point, end_point]
-
         # Set the scale of the marker
-        marker.scale.x = 0.2 # length
-        marker.scale.y = 0.03 # width
-        marker.scale.z = 0.03 # height
+        # ARROW
+        # marker.scale.x = 0.2 # length
+        # marker.scale.y = 0.03 # width
+        # marker.scale.z = 0.03 # height
+        # MESH_RESOURCE
+        marker.scale.x = marker.scale.y = marker.scale.z = 1.0
 
         # Set the color
         #pretty pink: 0.922, 0.114, 0.596

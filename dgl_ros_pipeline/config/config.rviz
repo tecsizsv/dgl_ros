@@ -3,9 +3,7 @@ Panels:
     Help Height: 0
     Name: Displays
     Property Tree Widget:
-      Expanded:
-        - /Global Options1
-        - /Status1
+      Expanded: ~
       Splitter Ratio: 0.4676470458507538
     Tree Height: 304
   - Class: rviz_common/Selection
@@ -103,7 +101,7 @@ Visualization Manager:
       Name: TF
       Show Arrows: true
       Show Axes: true
-      Show Names: true
+      Show Names: false
       Tree:
         world:
           camera_link:
@@ -119,7 +117,7 @@ Visualization Manager:
       Enabled: true
       Name: MarkerArray
       Namespaces:
-        {}
+        grasp_candidates: true
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -187,7 +185,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 6.175376892089844
+      Distance: 3.075244188308716
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -202,10 +200,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.3915210962295532
+      Pitch: 1.0665210485458374
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 0.5044656991958618
+      Yaw: 2.404465675354004
     Saved: ~
 Window Geometry:
   Displays:
@@ -225,5 +223,5 @@ Window Geometry:
   Views:
     collapsed: true
   Width: 1378
-  X: 2181
-  Y: 177
+  X: 295
+  Y: 55

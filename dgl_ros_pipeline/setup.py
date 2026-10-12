@@ -15,6 +15,7 @@ setup(
         ('share/' + package_name, ['package.xml']),
         (os.path.join('share', package_name, 'launch'), glob.glob('launch/*.py')),
         (os.path.join('share', package_name, 'config'), glob.glob('config/*.rviz')),
+        (os.path.join('share', package_name, 'meshes'), glob.glob('meshes/*')),
     ],
     package_data={'': ['py.typed']},
     install_requires=['setuptools'],
