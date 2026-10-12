@@ -26,10 +26,10 @@ class ObjectDetector(Node):
 
         # Loading YOLO model
         #self._model = YOLO("yolo26m-objv1-150.pt") # Objects 365 data set
-        #self._model = YOLO("yolo26m.pt") # COCO data set
+        self._model = YOLO("yolo26m.pt") # COCO data set
         #self._model = YOLOWorld("yolov8s-world.pt") # World data set
-        self._model = YOLO("yolov8s-world.pt") # World data set
-        self._model.set_classes(["cardboard box", "battery", "bottle", "rod"])
+        #self._model = YOLO("yolov8s-world.pt") # World data set
+        #self._model.set_classes(["cardboard box", "battery", "bottle", "rod","mug"])
 
     
         # Subscribers:
@@ -55,7 +55,7 @@ class ObjectDetector(Node):
             cropped_img = image[CROP_Y_OFFSET:720, CROP_X_OFFSET:1090] 
 
             # Run YOLO model on the converted image
-            result = self._model(cropped_img, verbose=False)[0]
+            result = self._model(cropped_img, verbose=False, conf=0.65, device="cuda:0")[0]
 
             # Create Detection2DArray msg
             detection_array = Detection2DArray()

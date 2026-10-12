@@ -30,17 +30,26 @@ class GraspClient(Node):
         # Subscriber to YOLO detection messages (Detection2DArray)
         self._det_sub = self.create_subscription(Detection2DArray, 'detections', self.detection_callback, 10)
 
+        # Subscriber to camera info messages (CameraInfo)
+        self._cam_info_sub = self.create_subscription(CameraInfo, '/camera/camera/color/camera_info', self.camera_info_callback, 10)
+
+        # Unsubscribe after receiving the first message
+        self._cam_info_sub = self.create_subscription(CameraInfo, '/camera/camera/color/camera_info', self.camera_info_callback, 10)
+
         # Flags to controll actions
         self.busy = False
 
-        #---Some parameters from K matrix of Camera---
-        # Can read it from /camera/camera/color/camera_info
-        #camera focal lenght in pixel
+        self.camera_read = False
+
+        # Camera parameters, updated from the CameraInfo message (/camera/camera/color/camera_info)
+        # camera focal lenght in pixel
         self.fx = 922.5073852539062
         self.fy = 920.6383056640625
         # optical center of the image in pixel
         self.cx = 645.260498046875 
         self.cy = 354.32769775390625
+
+        # Manually updated parameters, based on the camera position and orientation in the world frame
         # camera distance from the table in meter
         self.cam_to_table = 1.95
         # Workspace boundaries on Z-axis in meter
@@ -190,7 +199,7 @@ class GraspClient(Node):
         # )
 
         # Check if there is a message
-        if not msg:
+        if not msg.detections:
             return
         
         det = msg.detections[0]
@@ -250,6 +259,26 @@ class GraspClient(Node):
 
         return workspace
     #end of _calc_workspace
+
+    def camera_info_callback(self, msg):
+        if self.camera_read:
+            return
+
+        if msg.k[0] <= 0.0 or msg.k[4] <= 0.0:
+            self.get_logger().WARN('Invalid camera info message received, waiting for next one...',throttle_duration_sec=2.0)
+            return
+        
+        # Update camera parameters from the CameraInfo message
+        self.fx = msg.k[0]
+        self.fy = msg.k[4]
+        self.cx = msg.k[2]
+        self.cy = msg.k[5]
+
+        self.get_logger().info(f'Camera parameters updated: fx={self.fx}, fy={self.fy}, cx={self.cx}, cy={self.cy}')
+        
+        self.camera_read = True
+        self.destroy_subscription(self._cam_info_sub)  # Unsubscribe after receiving the first message
+    #end of camera_info_callback
 
 def main(args=None):
     try:

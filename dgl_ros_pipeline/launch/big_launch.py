@@ -48,11 +48,21 @@ def generate_launch_description():
             # "world",
             # "camera_link",
             # new-style arguments
+            # 5G labor
+            # "--x", "0",
+            # "--y", "0",
+            # "--z", "1.95",
+            # "--roll", "0",
+            # "--pitch", "1.5707963",
+            # "--yaw", "0",
+            # "--frame-id", "world",
+            # "--child-frame-id", "camera_link",
+            # 127-es labor
             "--x", "0",
             "--y", "0",
-            "--z", "1.95",
+            "--z", "0.95",
             "--roll", "0",
-            "--pitch", "1.5707963",
+            "--pitch", "0.87266",
             "--yaw", "0",
             "--frame-id", "world",
             "--child-frame-id", "camera_link",
