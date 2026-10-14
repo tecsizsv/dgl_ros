@@ -33,7 +33,8 @@ def generate_launch_description():
             )
         ),
         launch_arguments={
-            "depth_module.depth_profile": "1280x720x30",
+            "depth_module.depth_profile": "1280x720x15",
+            "rgb_camera.color_profile": "1280x720x15",
             "pointcloud.enable": "true",
         }.items(),
     )

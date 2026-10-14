@@ -85,7 +85,7 @@ sample_above_plane = 0 #from gpd/.../eigen_params.cfg
 #   nn_radius: the radius for the neighborhood search (meters)
 #   num_orientations: the number of robot hand orientations to evaluate
 #   rotation_axes: the axes about which the point neighborhood gets rotated
-num_samples = 500
+num_samples = 290
 num_threads = 4
 nn_radius = 0.03 #~0.01-0.03 based on object size
 num_orientations = 16
