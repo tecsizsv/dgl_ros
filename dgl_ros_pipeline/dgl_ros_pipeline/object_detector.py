@@ -8,6 +8,7 @@ from rclpy.qos import qos_profile_sensor_data
 import cv_bridge
 from ultralytics import YOLO
 from ultralytics import YOLOWorld
+from ultralytics.utils.plotting import Annotator, Colors
 import numpy as np
 
 # qos_profile_sensor_data: Quality of Service (QoS) profile
@@ -32,9 +33,10 @@ class ObjectDetector(Node):
         #self._model = YOLOWorld("yolov8s-world.pt") # World data set
         #self._model = YOLO("yolov8s-world.pt") # World data set
         #self._model.set_classes(["cardboard box", "battery", "bottle", "rod","mug"])
+        self._colors = Colors()  # For consistent colors across runs
 
         self.cropping = True  # Flag to enable/disable cropping
-
+    
         # Subscribers:
         self._img_sub =self.create_subscription(Image, "/camera/camera/color/image_raw", self.image_callback, qos_profile_sensor_data)
 
@@ -66,6 +68,8 @@ class ObjectDetector(Node):
             detection_array = Detection2DArray()
             detection_array.header = msg.header
 
+            annotator = Annotator(image, line_width=3)
+
             # Process each detection
             for box in result.boxes:
                 detection = Detection2D()
@@ -96,9 +100,8 @@ class ObjectDetector(Node):
 
                 # Annotate the image with bounding boxes and class labels with confidence score
                 text = f"{class_name}: {score:.2f}"
-                color = PALETTE[class_id % 80].tolist()
-                cv2.rectangle(image, (int(x1), int(y1)), (int(x2), int(y2)), color, 2)
-                cv2.putText(image, text, (int(x1), max(int(y1) - 5, 0)), cv2.FONT_HERSHEY_SIMPLEX, 1.2, color, 2, cv2.LINE_AA)
+                color = self._colors(class_id, True)
+                annotator.box_label((x1, y1, x2, y2), text, color)
 
                 # Set detection hypothesis (class and confidence)(vision_msgs uses ObjectHypothesisWithPose[] results)
                 hypothesis = ObjectHypothesisWithPose()
@@ -108,6 +111,7 @@ class ObjectDetector(Node):
                 detection.results.append(hypothesis)
                 detection_array.detections.append(detection)
 
+            image = annotator.result()
             # Drawing a rectangle to show the cropped area on the original image
             if self.cropping:
                 cv2.rectangle(image, (CROP_X1, CROP_Y1), (CROP_X2, CROP_Y2), (0, 0, 255), 3,)
