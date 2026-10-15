@@ -1,0 +1,14 @@
+depth_module.depth_profile: 1280x720x15
+rgb_camera.color_profile: 1280x720x15
+pointcloud.enable: true
+hole_filling_filter.enable: false
+decimation_filter.enable: false
+decimation_filter.filter_magnitude: 2
+spatial_filter.enable: true
+spatial_filter.filter_magnitude: 1
+spatial_filter.filter_smooth_alpha: 0.5
+spatial_filter.filter_smooth_delta: 20
+temporal_filter.enable: true
+temporal_filter.filter_smooth_alpha: 0.6
+temporal_filter.filter_smooth_delta: 8
+temporal_filter.holes_fill: 0

@@ -73,7 +73,7 @@ workspace = -0.4 0.9 -0.72 0.78 0 1.75 #full table, from above the talbe to the 
 #camera_position = 0 0.3 1
 camera_position = 0 0 0
 #sample_above_plane = 1 #from dgl_ros/.../gpd_config.yaml
-sample_above_plane = 0 #from gpd/.../eigen_params.cfg
+sample_above_plane = 1 #from gpd/.../eigen_params.cfg
 
 #tf from robot base to camera [x y z roll pitch yaw] #not used in ur5.cfg
 # tf_base_cam = 0.085 0.017 0.524 0 0.8 0
@@ -113,7 +113,7 @@ thresh_rad = 1.5
 
 # Clustering of grasps
 #   min_inliers: minimum number of inliers per cluster; set to 0 to turn off clustering
-min_inliers = 0
+min_inliers = 2
 
 # Grasp selection
 #   num_selected: number of selected grasps (sorted by score)

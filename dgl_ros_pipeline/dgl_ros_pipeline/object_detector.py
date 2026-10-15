@@ -62,7 +62,7 @@ class ObjectDetector(Node):
                 yolo_input = image
 
             # Run YOLO model on the converted image
-            result = self._model(yolo_input, verbose=False, conf=0.4, device="cuda:0")[0]
+            result = self._model(yolo_input, verbose=False, conf=0.6, device="cuda:0")[0]
 
             # Create Detection2DArray msg
             detection_array = Detection2DArray()

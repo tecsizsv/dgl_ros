@@ -33,9 +33,15 @@ def generate_launch_description():
             )
         ),
         launch_arguments={
-            "depth_module.depth_profile": "1280x720x15",
-            "rgb_camera.color_profile": "1280x720x15",
-            "pointcloud.enable": "true",
+            "json_file_path": os.path.join(get_package_share_directory("dgl_ros_pipeline"), "config", "camera_config.json",),
+            "config_file": os.path.join(get_package_share_directory("dgl_ros_pipeline"), "config", "camera_filters.yaml"),
+            # "depth_module.depth_profile": "1280x720x15",
+            # "rgb_camera.color_profile": "1280x720x15",
+            # "pointcloud.enable": "true",
+            # "hole_filling_filter.enable": "false",
+            # "decimation_filter.enable": "false",
+            # "spatial_filter.enable": "true",
+            # "temporal_filter.enable": "true",
         }.items(),
     )
 
