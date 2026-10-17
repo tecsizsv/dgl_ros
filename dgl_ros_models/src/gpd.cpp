@@ -8,6 +8,8 @@
 #include <dgl_ros_models/gpd.hpp>
 #include <gpd/grasp_detector.h>
 #include <pcl/filters/crop_box.h>
+#include <pcl/common/transforms.h>
+#include <pcl/common/common.h>
 
 using dgl_ros_interfaces::action::SampleGraspPoses;
 using sensor_msgs::msg::PointCloud2;
@@ -58,28 +60,46 @@ SampleGraspPoses::Result::SharedPtr Gpd::actionFromObs(std::shared_ptr<GpdObserv
     // Workspace corners in the world frame (from the action goal)
     Eigen::Vector3d ws_min_world(workspace[0], workspace[2], workspace[4]);
     Eigen::Vector3d ws_max_world(workspace[1], workspace[3], workspace[5]);
+    RCLCPP_INFO_STREAM(this->get_logger(), "Workspace (world) min: " << ws_min_world.transpose() << " | max: " << ws_max_world.transpose());
 
     // world -> camera transform
     const Eigen::Isometry3d tf_src_world = tf_world_src_.inverse();
 
+    auto cloud_world = std::make_shared<PointCloudRGBA>();
+    auto cropped_cloud_world = std::make_shared<PointCloudRGBA>();
+
+    // Step 1: transform cloud from camera to world frame so the workspace box is aligned with the cloud
+    pcl::transformPointCloud(*grasp_cloud, *cloud_world, tf_world_src_.cast<float>().matrix());
+    
+    pcl::PointXYZRGBA min_pt, max_pt;
+    pcl::getMinMax3D(*cloud_world, min_pt, max_pt);
+    RCLCPP_DEBUG_STREAM(this->get_logger(), "Cloud (world) min: " << min_pt.x << " " << min_pt.y << " " << min_pt.z << " | max: " << max_pt.x << " " << max_pt.y << " " << max_pt.z);
+    
     // Corners in the camera frame
-    Eigen::Vector3d ws_corner_a_cam = tf_src_world * ws_min_world;
-    Eigen::Vector3d ws_corner_b_cam = tf_src_world * ws_max_world;
+    // Eigen::Vector3d ws_corner_a_cam = tf_src_world * ws_min_world;
+    // Eigen::Vector3d ws_corner_b_cam = tf_src_world * ws_max_world;
 
     // Sort vectors
-    Eigen::Vector3d ws_min_cam = ws_corner_a_cam.cwiseMin(ws_corner_b_cam);
-    Eigen::Vector3d ws_max_cam = ws_corner_a_cam.cwiseMax(ws_corner_b_cam);
-    RCLCPP_INFO_STREAM(this->get_logger(), "ws_min_cam: " << ws_min_cam.transpose() << " | ws_max_cam: " << ws_max_cam.transpose());
+    // Eigen::Vector3d ws_min_cam = ws_corner_a_cam.cwiseMin(ws_corner_b_cam);
+    // Eigen::Vector3d ws_max_cam = ws_corner_a_cam.cwiseMax(ws_corner_b_cam);
+    // RCLCPP_INFO_STREAM(this->get_logger(), "ws_min_cam: " << ws_min_cam.transpose() << " | ws_max_cam: " << ws_max_cam.transpose());
 
-    // Crop the point cloud to the workspace
+    // Step 2: Crop the cloud in the world frame
     pcl::CropBox<pcl::PointXYZRGBA> crop_box;
-    crop_box.setMin(ws_min_cam.cast<float>().homogeneous());
-    crop_box.setMax(ws_max_cam.cast<float>().homogeneous());
-    RCLCPP_INFO_STREAM(this->get_logger(), "Cloud size before crop: " << grasp_cloud->size());
+    // crop_box.setMin(ws_min_cam.cast<float>().homogeneous());
+    // crop_box.setMax(ws_max_cam.cast<float>().homogeneous());
+    // crop_box.setInputCloud(grasp_cloud);
+    // crop_box.filter(*grasp_cloud);
 
-    crop_box.setInputCloud(grasp_cloud);
-    crop_box.filter(*grasp_cloud);
-    RCLCPP_INFO_STREAM(this->get_logger(), "Cloud size after crop: "  << grasp_cloud->size());
+    crop_box.setMin(ws_min_world.cast<float>().homogeneous());
+    crop_box.setMax(ws_max_world.cast<float>().homogeneous());
+    crop_box.setInputCloud(cloud_world);
+    crop_box.filter(*cropped_cloud_world);
+
+    // Step 3: transform back cloud from world to camera frame because GPD expects the camera frame
+    pcl::transformPointCloud(*cropped_cloud_world, *grasp_cloud, tf_src_world.cast<float>().matrix());
+
+    RCLCPP_INFO_STREAM(this->get_logger(), "Crop: " << cloud_world->size() << " -> " << grasp_cloud->size() << " points");
 
     if(grasp_cloud->empty())
     {
