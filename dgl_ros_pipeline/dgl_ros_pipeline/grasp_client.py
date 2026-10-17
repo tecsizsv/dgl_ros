@@ -10,7 +10,10 @@ from dgl_ros_interfaces.action import SampleGraspPoses
 from vision_msgs.msg import Detection2D, Detection2DArray, ObjectHypothesisWithPose
 from action_msgs.msg import GoalStatus
 from sensor_msgs.msg import CameraInfo
+from tf2_ros import Buffer, TransformListener
+import numpy as np
 
+import image_geometry
 class GraspClient(Node):
 
     def __init__(self):
@@ -36,6 +39,10 @@ class GraspClient(Node):
         # Unsubscribe after receiving the first message
         self._cam_info_sub = self.create_subscription(CameraInfo, '/camera/camera/color/camera_info', self.camera_info_callback, 10)
 
+        # Subscribe to camera_color-optical_frame to world transform (tf)
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
+
         # Flags to controll actions
         self.busy = False
 
@@ -51,12 +58,12 @@ class GraspClient(Node):
 
         # Manually updated parameters, based on the camera position and orientation in the world frame
         # camera distance from the table in meter
-        self.cam_to_table = 0.7 #1.95
+        self.cam_to_table = 1.5 #1.95
         # Workspace boundaries on Z-axis in meter
-        self.z_min = 0.0
-        self.z_max = 1.75 #1.75
+        self.z_min = -2.0
+        self.z_max = 2.0 #1.75
         # How much bigger should the workspace be than the boudingbox in meter
-        self.margin = 0.1 # 5 cm
+        self.margin = 0.05 # 5 cm
     #end of __init__
 
     #Method waits for the action server to be available, then sends a goal to the server. It returns a future that we can later wait on.
@@ -213,22 +220,24 @@ class GraspClient(Node):
 
     #  This method converts the boundingbox from pixels to meters thus a workspace is calculated
     def _calc_workspace(self, bbox):
-        bbox_center_x = bbox.center.position.x
-        bbox_center_y = bbox.center.position.y
-        bbox_width = bbox.size_x
-        bbox_height = bbox.size_y
+        # Data from yolo is in the camera_color_optical_frame
+        # bbox_center_x = bbox.center.position.x
+        # bbox_center_y = bbox.center.position.y
+        # bbox_width = bbox.size_x
+        # bbox_height = bbox.size_y
 
-        # Calculating the sides of the boundingbox
-        u_min =  bbox_center_x-(bbox_width/2)
-        u_max = u_min + bbox_width
-        v_min = bbox_center_y-(bbox_height/2)
-        v_max = v_min + bbox_height
+        # u_min =  bbox_center_x-(bbox_width/2)
+        # u_max = u_min + bbox_width
+        # v_min = bbox_center_y-(bbox_height/2)
+        # v_max = v_min + bbox_height
 
-        # Converting sides from 2D to 3D: P_cam = K^-1 * p
-        # K: 922.5073852539062  0.0                645.260498046875
-        #    0.0                920.6383056640625  354.32769775390625
-        #    0.0                0.0                1.0
-        # p = [u, v, 1]' P_cam = [x, y, z]'  
+        # Bounding box sides in pixels (color image)
+        u_min = bbox.center.position.x - bbox.size_x / 2
+        u_max = u_min + bbox.size_x
+        v_min = bbox.center.position.y - bbox.size_y / 2
+        v_max = v_min + bbox.size_y
+
+        # Step 1: Getting normalized coordinates in the camera frame (x, y, z) from pixel coordinates (u, v)
         depth = self.cam_to_table
         x_min = (u_min - self.cx) * depth / self.fx
         x_max = (u_max - self.cx) * depth / self.fx
@@ -236,17 +245,18 @@ class GraspClient(Node):
         y_max = (v_max - self.cy) * depth/ self.fy
         z = depth
 
-        # Transform from camera_color_optical_frame to world: P = T * P_cam (adding 1 at the end)
+        # Transform from camera_color_optical_frame to world: P = T * P_cam
+        # Step 2: Getting 3D points in the world frame from the camera frame (camera_color_optical_frame) using the transformation matrix T
         # T: -0.009 -1.000  0.003  0.000
         #    -1.000  0.009 -0.007  0.015
         #     0.007 -0.003 -1.000  1.950
         #     0.000  0.000  0.000  1.000
-        # First calculate with the min values, and after that with max values
         x_a = (-0.009 * x_min - 1 * y_min + 0.003 * z + 0.0) 
         x_b = (-0.009 * x_max - 1 * y_max + 0.003 * z + 0.0) 
         y_a = (-1.0 * x_min + 0.009 * y_min - 0.007 * z + 0.015) 
         y_b = (-1.0 * x_max + 0.009 * y_max - 0.007 * z + 0.015) 
 
+        # Calculate the workspace boundaries with some margin
         x_world_min = min(x_a, x_b) - self.margin
         x_world_max = max(x_a, x_b) + self.margin
         y_world_min = min(y_a, y_b) - self.margin
@@ -268,6 +278,10 @@ class GraspClient(Node):
             return
         
         # Update camera parameters from the CameraInfo message
+        # K camera intrinsic matrix:
+        #    1/fx    0    -cx/fx
+        #     0     1/fy  -cy/fy
+        #     0      0      1
         self.fx = msg.k[0]
         self.fy = msg.k[4]
         self.cx = msg.k[2]
@@ -278,6 +292,17 @@ class GraspClient(Node):
         self.camera_read = True
         self.destroy_subscription(self._cam_info_sub)  # Unsubscribe after receiving the first message
     #end of camera_info_callback
+
+    def _get_tf(self):
+        # T: -0.009 -1.000  0.003  0.000
+                #    -1.000  0.009 -0.007  0.015
+                #     0.007 -0.003 -1.000  1.950
+                #     0.000  0.000  0.000  1.000
+        tf = self.tf_buffer.lookup_transform('world', 'camera_color_optical_frame', rclpy.time.Time())
+        t = tf.transform.translation
+        T = np.eye(4)
+
+    #end of _get_tf
 
 def main(args=None):
     try:

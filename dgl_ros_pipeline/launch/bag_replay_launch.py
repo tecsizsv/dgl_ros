@@ -54,9 +54,9 @@ def generate_launch_description():
             # 127-es labor
             "--x", "0",
             "--y", "0",
-            "--z", "0.7",
+            "--z", "0.71", #camera distance from the table in meter
             "--roll", "0.043",
-            "--pitch", "0.87266",
+            "--pitch", "0.861",
             "--yaw", "0",
             "--frame-id", "world",
             "--child-frame-id", "camera_link",

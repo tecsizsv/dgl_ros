@@ -47,7 +47,7 @@ SampleGraspPoses::Result::SharedPtr Gpd::actionFromObs(std::shared_ptr<GpdObserv
   // Convert to PCL.
   PointCloudRGB cloud;
   pcl::fromROSMsg(*msg, cloud);
-  pcl::io::savePCDFileASCII ("temp_ros_cloud.pcd", cloud); // Save the point cloud to a PCD file
+  //pcl::io::savePCDFileASCII ("temp_ros_cloud.pcd", cloud); // Save the point cloud to a PCD file
   
   // Convert to RGBA for cropping and GPD
   auto grasp_cloud = std::make_shared<PointCloudRGBA>();
