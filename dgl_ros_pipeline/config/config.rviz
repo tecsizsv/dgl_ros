@@ -117,7 +117,7 @@ Visualization Manager:
       Enabled: true
       Name: MarkerArray
       Namespaces:
-        grasp_candidates: true
+        {}
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -185,7 +185,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 2.349430799484253
+      Distance: 3.6968746185302734
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -200,10 +200,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.9847961068153381
+      Pitch: 0.1797967106103897
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 3.8294694423675537
+      Yaw: 4.604468822479248
     Saved: ~
 Window Geometry:
   Displays:

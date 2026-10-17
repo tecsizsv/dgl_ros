@@ -35,13 +35,6 @@ def generate_launch_description():
         launch_arguments={
             "json_file_path": os.path.join(get_package_share_directory("dgl_ros_pipeline"), "config", "camera_config2.json",),
             "config_file": os.path.join(get_package_share_directory("dgl_ros_pipeline"), "config", "camera_filters.yaml"),
-            # "depth_module.depth_profile": "1280x720x15",
-            # "rgb_camera.color_profile": "1280x720x15",
-            # "pointcloud.enable": "true",
-            # "hole_filling_filter.enable": "false",
-            # "decimation_filter.enable": "false",
-            # "spatial_filter.enable": "true",
-            # "temporal_filter.enable": "true",
         }.items(),
     )
 
@@ -50,11 +43,6 @@ def generate_launch_description():
         executable="static_transform_publisher",
         name="camera_base_tf",
         arguments=[
-            # old-style arguments
-            # "0", "0", "1.95", "0", "1.5707963", "0",
-            # "world",
-            # "camera_link",
-            # new-style arguments
             # 5G labor
             # "--x", "0",
             # "--y", "0",
@@ -67,7 +55,7 @@ def generate_launch_description():
             # 127-es labor
             "--x", "0",
             "--y", "0",
-            "--z", "1.45",
+            "--z", "0.7",
             "--roll", "0",
             "--pitch", "0.87266",
             "--yaw", "0",
@@ -84,30 +72,9 @@ def generate_launch_description():
         output="screen",
     )
 
-    # gpd_node = TimerAction( # action szerver, ami feliratkozik a kamera node által publikált pointclouid topicra, ésa kiszámolt grasp listát az action eredményeként adja vissza, amikor lekérdezik
-    #     period=3.0,   # seconds — give the camera time to publish
-    #     actions=[
-    #         Node(
-    #             package="dgl_ros_models",
-    #             executable="gpd",
-    #             name="gpd",
-    #             parameters=[
-    #                 {
-    #                     "src_topic0": "/camera/camera/depth/color/points",
-    #                     "gpd_config_path": os.path.join(gpd_config_dir, "config", "gpd_config.yaml"),
-    #                     "world_frame": "world",
-    #                     "src_frame0": "camera_depth_optical_frame",
-    #                 }
-    #             ],
-    #             output="screen",
-    #         )
-    #     ],
-    # )
-
     gpd_node = Node(
         package="dgl_ros_models",
         executable="gpd",
-        #name="gpd",
         parameters=[
             {
                 "src_topic0": "/camera/camera/depth/color/points",
@@ -150,6 +117,5 @@ def generate_launch_description():
         static_tf,
         rviz2,
         object_detection,
-        # gpd_node,
         grasp_client,
     ])

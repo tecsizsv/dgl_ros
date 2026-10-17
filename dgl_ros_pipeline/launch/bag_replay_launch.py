@@ -42,11 +42,6 @@ def generate_launch_description():
         executable="static_transform_publisher",
         name="camera_base_tf",
         arguments=[
-            # old-style arguments
-            # "0", "0", "1.95", "0", "1.5707963", "0",
-            # "world",
-            # "camera_link",
-            # new-style arguments
             # 5G labor
             # "--x", "0",
             # "--y", "0",
@@ -59,8 +54,8 @@ def generate_launch_description():
             # 127-es labor
             "--x", "0",
             "--y", "0",
-            "--z", "1.45",
-            "--roll", "0",
+            "--z", "0.7",
+            "--roll", "0.043",
             "--pitch", "0.87266",
             "--yaw", "0",
             "--frame-id", "world",
@@ -86,7 +81,6 @@ def generate_launch_description():
     gpd_node = Node(
         package="dgl_ros_models",
         executable="gpd",
-        #name="gpd",
         parameters=[
             {
                 "src_topic0": "/camera/camera/depth/color/points",
@@ -97,25 +91,6 @@ def generate_launch_description():
         ],
         output="screen",
     )
-    # gpd_node = TimerAction( # action szerver, ami feliratkozik a kamera node által publikált pointclouid topicra, ésa kiszámolt grasp listát az action eredményeként adja vissza, amikor lekérdezik
-    #     period=3.0,   # seconds — give the camera time to publish
-    #     actions=[
-    #         Node(
-    #             package="dgl_ros_models",
-    #             executable="gpd",
-    #             name="gpd",
-    #             parameters=[
-    #                 {
-    #                     "src_topic0": "/camera/camera/depth/color/points",
-    #                     "gpd_config_path": "src/dgl_ros/dgl_ros_models/config/gpd_config.yaml",
-    #                     "world_frame": "world",
-    #                     "src_frame0": "camera_depth_optical_frame",
-    #                 }
-    #             ],
-    #             output="screen",
-    #         )
-    #     ],
-    # )
 
     grasp_client = Node( # elindítja a grasp clientet
         package="dgl_ros_pipeline",
@@ -130,7 +105,6 @@ def generate_launch_description():
         static_tf,
         rviz2,
         object_detection,
-        # gpd_node,
         RegisterEventHandler(
             event_handler=OnProcessStart(
                 target_action=bag_play,
