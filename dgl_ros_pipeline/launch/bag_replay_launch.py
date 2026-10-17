@@ -59,7 +59,7 @@ def generate_launch_description():
             # 127-es labor
             "--x", "0",
             "--y", "0",
-            "--z", "0.95",
+            "--z", "1.45",
             "--roll", "0",
             "--pitch", "0.87266",
             "--yaw", "0",

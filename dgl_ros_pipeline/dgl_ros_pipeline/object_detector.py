@@ -35,7 +35,7 @@ class ObjectDetector(Node):
         #self._model.set_classes(["cardboard box", "battery", "bottle", "rod","mug"])
         self._colors = Colors()  # For consistent colors across runs
 
-        self.cropping = True  # Flag to enable/disable cropping
+        self.cropping = False  # Flag to enable/disable cropping
     
         # Subscribers:
         self._img_sub =self.create_subscription(Image, "/camera/camera/color/image_raw", self.image_callback, qos_profile_sensor_data)
@@ -58,6 +58,7 @@ class ObjectDetector(Node):
             if self.cropping:
                 #image[y1:y2, x1:x2]
                 yolo_input = image[CROP_Y1:CROP_Y2, CROP_X1:CROP_X2]
+                self.get_logger().info("Cropping enabled: Using cropped image for YOLO detection.")
             else:
                 yolo_input = image
 

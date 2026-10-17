@@ -51,12 +51,12 @@ class GraspClient(Node):
 
         # Manually updated parameters, based on the camera position and orientation in the world frame
         # camera distance from the table in meter
-        self.cam_to_table = 0.3 #1.95
+        self.cam_to_table = 0.7 #1.95
         # Workspace boundaries on Z-axis in meter
         self.z_min = 0.0
-        self.z_max = 1.0 #1.75
+        self.z_max = 1.75 #1.75
         # How much bigger should the workspace be than the boudingbox in meter
-        self.margin = 0.03 # 5 cm
+        self.margin = 0.1 # 5 cm
     #end of __init__
 
     #Method waits for the action server to be available, then sends a goal to the server. It returns a future that we can later wait on.

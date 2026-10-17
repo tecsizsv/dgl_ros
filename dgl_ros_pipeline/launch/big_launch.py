@@ -33,7 +33,7 @@ def generate_launch_description():
             )
         ),
         launch_arguments={
-            "json_file_path": os.path.join(get_package_share_directory("dgl_ros_pipeline"), "config", "camera_config.json",),
+            "json_file_path": os.path.join(get_package_share_directory("dgl_ros_pipeline"), "config", "camera_config2.json",),
             "config_file": os.path.join(get_package_share_directory("dgl_ros_pipeline"), "config", "camera_filters.yaml"),
             # "depth_module.depth_profile": "1280x720x15",
             # "rgb_camera.color_profile": "1280x720x15",
@@ -67,7 +67,7 @@ def generate_launch_description():
             # 127-es labor
             "--x", "0",
             "--y", "0",
-            "--z", "0.95",
+            "--z", "1.45",
             "--roll", "0",
             "--pitch", "0.87266",
             "--yaw", "0",
