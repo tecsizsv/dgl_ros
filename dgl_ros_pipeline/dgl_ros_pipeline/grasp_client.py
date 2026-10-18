@@ -1,6 +1,7 @@
 # Added some notes based on the ROS tutorials (https://docs.ros.org/en/kilted/Tutorials/)
 import time
 import rclpy
+import numpy as np
 from rclpy.action import ActionClient
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
@@ -10,10 +11,9 @@ from dgl_ros_interfaces.action import SampleGraspPoses
 from vision_msgs.msg import Detection2D, Detection2DArray, ObjectHypothesisWithPose
 from action_msgs.msg import GoalStatus
 from sensor_msgs.msg import CameraInfo
-from tf2_ros import Buffer, TransformListener
-import numpy as np
+from tf2_ros import Buffer, TransformListener, TransformException
+from scipy.spatial.transform import Rotation
 
-import image_geometry
 class GraspClient(Node):
 
     def __init__(self):
@@ -34,9 +34,6 @@ class GraspClient(Node):
         self._det_sub = self.create_subscription(Detection2DArray, 'detections', self.detection_callback, 10)
 
         # Subscriber to camera info messages (CameraInfo)
-        self._cam_info_sub = self.create_subscription(CameraInfo, '/camera/camera/color/camera_info', self.camera_info_callback, 10)
-
-        # Unsubscribe after receiving the first message
         self._cam_info_sub = self.create_subscription(CameraInfo, '/camera/camera/color/camera_info', self.camera_info_callback, 10)
 
         # Subscribe to camera_color-optical_frame to world transform (tf)
@@ -213,6 +210,9 @@ class GraspClient(Node):
 
         workspace = self._calc_workspace(det.bbox)
 
+        if workspace is None:
+            return
+
         self.busy = True
         self.get_logger().info(f'workspace = {workspace}')
         self.send_goal(workspace)
@@ -220,61 +220,79 @@ class GraspClient(Node):
 
     #  This method converts the boundingbox from pixels to meters thus a workspace is calculated
     def _calc_workspace(self, bbox):
-        # Data from yolo is in the camera_color_optical_frame
-        # bbox_center_x = bbox.center.position.x
-        # bbox_center_y = bbox.center.position.y
-        # bbox_width = bbox.size_x
-        # bbox_height = bbox.size_y
+            # Data from yolo is in the camera_color_optical_frame
+            # Bounding box sides in pixels (color image)
+            u_min = bbox.center.position.x - bbox.size_x / 2
+            u_max = u_min + bbox.size_x
+            v_min = bbox.center.position.y - bbox.size_y / 2
+            v_max = v_min + bbox.size_y
 
-        # u_min =  bbox_center_x-(bbox_width/2)
-        # u_max = u_min + bbox_width
-        # v_min = bbox_center_y-(bbox_height/2)
-        # v_max = v_min + bbox_height
+            # Step 1: Getting normalized coordinates in the camera frame (x, y, z) from pixel coordinates (u, v)
+            depth = self.cam_to_table
+            x_min = (u_min - self.cx) * depth / self.fx
+            x_max = (u_max - self.cx) * depth / self.fx
+            y_min = (v_min - self.cy) * depth/ self.fy
+            y_max = (v_max - self.cy) * depth/ self.fy
+            z = 1
 
-        # Bounding box sides in pixels (color image)
-        u_min = bbox.center.position.x - bbox.size_x / 2
-        u_max = u_min + bbox.size_x
-        v_min = bbox.center.position.y - bbox.size_y / 2
-        v_max = v_min + bbox.size_y
+            # Transform from camera_color_optical_frame to world: P = T * P_cam
+            # Step 2: Getting 3D points in the world frame from the camera frame (camera_color_optical_frame) using the transformation matrix T
+            T = self._get_tf('world', 'camera_color_optical_frame')
+            
+            if T is None:
+                return None
 
-        # Step 1: Getting normalized coordinates in the camera frame (x, y, z) from pixel coordinates (u, v)
-        depth = self.cam_to_table
-        x_min = (u_min - self.cx) * depth / self.fx
-        x_max = (u_max - self.cx) * depth / self.fx
-        y_min = (v_min - self.cy) * depth/ self.fy
-        y_max = (v_max - self.cy) * depth/ self.fy
-        z = depth
+            x_a = (-0.009 * x_min - 1 * y_min + 0.003 * z + 0.0) 
+            x_b = (-0.009 * x_max - 1 * y_max + 0.003 * z + 0.0) 
+            y_a = (-1.0 * x_min + 0.009 * y_min - 0.007 * z + 0.015) 
+            y_b = (-1.0 * x_max + 0.009 * y_max - 0.007 * z + 0.015) 
 
-        # Transform from camera_color_optical_frame to world: P = T * P_cam
-        # Step 2: Getting 3D points in the world frame from the camera frame (camera_color_optical_frame) using the transformation matrix T
-        # T: -0.009 -1.000  0.003  0.000
-        #    -1.000  0.009 -0.007  0.015
-        #     0.007 -0.003 -1.000  1.950
-        #     0.000  0.000  0.000  1.000
-        x_a = (-0.009 * x_min - 1 * y_min + 0.003 * z + 0.0) 
-        x_b = (-0.009 * x_max - 1 * y_max + 0.003 * z + 0.0) 
-        y_a = (-1.0 * x_min + 0.009 * y_min - 0.007 * z + 0.015) 
-        y_b = (-1.0 * x_max + 0.009 * y_max - 0.007 * z + 0.015) 
+            # Calculate the workspace boundaries with some margin
+            x_world_min = min(x_a, x_b) - self.margin
+            x_world_max = max(x_a, x_b) + self.margin
+            y_world_min = min(y_a, y_b) - self.margin
+            y_world_max = max(y_a, y_b) + self.margin
+            z_world_min = self.z_min
+            z_world_max = self.z_max
 
-        # Calculate the workspace boundaries with some margin
-        x_world_min = min(x_a, x_b) - self.margin
-        x_world_max = max(x_a, x_b) + self.margin
-        y_world_min = min(y_a, y_b) - self.margin
-        y_world_max = max(y_a, y_b) + self.margin
-        z_world_min = self.z_min
-        z_world_max = self.z_max
+            workspace = [x_world_min, x_world_max, y_world_min, y_world_max, z_world_min, z_world_max]
 
-        workspace = [x_world_min, x_world_max, y_world_min, y_world_max, z_world_min, z_world_max]
+            return workspace
 
-        return workspace
     #end of _calc_workspace
+
+    def _get_tf(self, frame_to, frame_from):
+        try:
+            # Transformation matrix
+            #   r11   r12   r13   tx
+            #   r21   r22   r23   ty
+            #   r31   r32   r33   tz
+            #    0     0     0    1
+            tf = self.tf_buffer.lookup_transform(frame_to, frame_from, rclpy.time.Time())
+            self.get_logger().info(f'TF:\n{message_to_yaml(tf)}')
+            t = tf.transform.translation # translation
+            q = tf.transform.rotation # rotation as quaternions
+
+            # Build T from the t and q
+            T = np.eye(4)
+            T[:3, :3] = Rotation.from_quat([q.x, q.y, q.z, q.w]).as_matrix()
+            T[:3, 3] = [t.x, t.y, t.z]
+
+            self.get_logger().info(f'T:\n{T}')
+
+            return T
+
+        except TransformException as ex:
+            self.get_logger().warn(f'Could not transform {frame_from} to {frame_to}: {ex}')
+            return None
+    #end of _get_tf
 
     def camera_info_callback(self, msg):
         if self.camera_read:
             return
 
         if msg.k[0] <= 0.0 or msg.k[4] <= 0.0:
-            self.get_logger().WARN('Invalid camera info message received, waiting for next one...',throttle_duration_sec=2.0)
+            self.get_logger().warn('Invalid camera info message received, waiting for next one...',throttle_duration_sec=2.0)
             return
         
         # Update camera parameters from the CameraInfo message
@@ -292,17 +310,6 @@ class GraspClient(Node):
         self.camera_read = True
         self.destroy_subscription(self._cam_info_sub)  # Unsubscribe after receiving the first message
     #end of camera_info_callback
-
-    def _get_tf(self):
-        # T: -0.009 -1.000  0.003  0.000
-                #    -1.000  0.009 -0.007  0.015
-                #     0.007 -0.003 -1.000  1.950
-                #     0.000  0.000  0.000  1.000
-        tf = self.tf_buffer.lookup_transform('world', 'camera_color_optical_frame', rclpy.time.Time())
-        t = tf.transform.translation
-        T = np.eye(4)
-
-    #end of _get_tf
 
 def main(args=None):
     try:
