@@ -8,8 +8,7 @@ from rclpy.node import Node
 from visualization_msgs.msg import Marker, MarkerArray
 from rosidl_runtime_py.convert import message_to_yaml
 from dgl_ros_interfaces.action import SampleGraspPoses
-from vision_msgs.msg import Detection2D, Detection2DArray, ObjectHypothesisWithPose
-from action_msgs.msg import GoalStatus
+from vision_msgs.msg import Detection2DArray
 from sensor_msgs.msg import CameraInfo
 from tf2_ros import Buffer, TransformListener, TransformException
 from scipy.spatial.transform import Rotation
@@ -40,26 +39,34 @@ class GraspClient(Node):
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
-        # Flags to controll actions
-        self.busy = False
-
-        self.camera_read = False
-
         # Camera parameters, updated from the CameraInfo message (/camera/camera/color/camera_info)
-        # camera focal lenght in pixel
+        # camera focal length in pixel
         self.fx = 922.5073852539062
         self.fy = 920.6383056640625
         # optical center of the image in pixel
         self.cx = 645.260498046875 
         self.cy = 354.32769775390625
 
-        # Manually updated parameters, based on the camera position and orientation in the world frame
+        # Parameters:
         # Workspace boundaries on Z-axis in meter
-        self.z_min = 0.005  # just above the table
-        self.z_max = 0.15   # the highest expected object
+        self.declare_parameter('z_min', 0.005) # just above the table
+        self.z_min = self.get_parameter('z_min').value
+        self.declare_parameter('z_max', 0.3) # the highest expected object
+        self.z_max = self.get_parameter('z_max').value
 
-        # How much bigger should the workspace be than the boudingbox in meter
-        self.margin = 0.05 # 5 cm
+        # Margin to add to calculated workspace
+        self.declare_parameter('margin', 0.05) # 5 cm
+        self.margin = self.get_parameter('margin').value
+
+        # Flags:
+        self.busy = False # an action is running or not
+        self.camera_read = False # successful camera parameter update
+
+        # Frames:
+        self.declare_parameter('world_frame', 'world')
+        self.world_frame = self.get_parameter('world_frame').value
+        self.declare_parameter('camera_frame', 'camera_color_optical_frame')
+        self.camera_frame = self.get_parameter('camera_frame').value
     #end of __init__
 
     #Method waits for the action server to be available, then sends a goal to the server. It returns a future that we can later wait on.
@@ -102,18 +109,6 @@ class GraspClient(Node):
         self.publish_grasp_markers(result.grasp_candidates)
 
         self.busy = False
-        #Alternative solution with some error handling
-        # try:
-        #     result = future.result().result
-        #     status = future.result().status
-        #     if status == GoalStatus.STATUS_SUCCEEDED:
-        #         self.get_logger().info('Goal succeeded!')
-        #         self.get_logger().info(message_to_yaml(result))
-        #         self.publish_grasp_markers(result.grasp_candidates)
-        #     else:
-        #         self.get_logger().info('Goal failed with status: {0}'.format(status))
-        # finally:
-        #     self.busy = False
     #end of get_result_callback
 
     #This method is called when the action server sends feedback about the goal.
@@ -186,25 +181,11 @@ class GraspClient(Node):
         if self.busy:
             return
 
-        # # Process the incoming detection messages
-        # for det in msg.detections:
-        #     pos_x = det.bbox.center.position.x
-        #     pos_y = det.bbox.center.position.y
-        #     size_x = det.bbox.size_x
-        #     size_y = det.bbox.size_y
-
-        # Logging bounding box measures for debug purposes
-        # self.get_logger().info(
-        # f'{det.results[0].hypothesis.class_id} ({det.results[0].hypothesis.score:.2f}) at ({pos_x:.0f},{pos_y:.0f}) '
-        # f'size {size_x:.0f}x{size_y:.0f}'
-        # )
-
         # Check if there is a message
         if not msg.detections:
             return
         
         det = msg.detections[0]
-
 
         workspace = self._calc_workspace(det.bbox)
 
@@ -237,7 +218,7 @@ class GraspClient(Node):
             norm_coords = np.vstack((x, y, one))
 
             # Getting the T transformation matrix (T = [R t])
-            T = self._get_tf('world', 'camera_color_optical_frame')
+            T = self._get_tf(self.world_frame, self.camera_frame)
         
             if T is None:
                 self.get_logger().warn('Transformation matrix T is empty.')
@@ -375,9 +356,6 @@ def main(args=None):
 
             #delay 5 seconds to allow the action server to start up
             time.sleep(5)
-
-            #future = action_client.send_goal()
-            #action_client.send_goal()
 
             rclpy.spin(action_client)
     except (KeyboardInterrupt, ExternalShutdownException):

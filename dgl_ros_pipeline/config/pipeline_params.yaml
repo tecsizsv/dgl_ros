@@ -1,0 +1,21 @@
+/**:
+  ros__parameters:
+    world_frame: world
+
+grasp_client:
+  ros__parameters:
+    z_min: 0.005 # just above the table
+    z_max: 0.15 # the highest expected object
+    margin: 0.05
+    camera_frame: camera_color_optical_frame
+
+object_detector:
+  ros__parameters:
+    cropping: False
+    crop: [440, 20, 1090, 720]
+    # Options: yolo26m-objv1-150.pt (Objects365), yolo26m.pt (COCO), yolov8s-world.pt (World)
+    model: yolo26m-objv1-150.pt
+    # Only used with a -world model
+    classes: ["cardboard box", "battery", "bottle", "rod", "mug"]
+    conf: 0.6 # detection confidence threshold (0..1)
+    device: "cuda:0" # or "cpu"

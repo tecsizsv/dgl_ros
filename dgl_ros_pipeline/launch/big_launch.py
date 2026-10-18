@@ -3,26 +3,19 @@ from launch import LaunchDescription
 from launch.actions import (
     IncludeLaunchDescription,
     ExecuteProcess,
-    RegisterEventHandler,
-    TimerAction,
-    LogInfo,
-)
+    RegisterEventHandler,)
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
-from launch.event_handlers import (
-    OnExecutionComplete,
-    OnProcessExit,
-    OnProcessIO,
-    OnProcessStart,
-    OnShutdown
-)
+from launch.event_handlers import OnProcessExit
 
 def generate_launch_description():
 
     # Ez a telepített (share) mappára mutat, nem a forrásmappára
     rviz_config_dir = get_package_share_directory('dgl_ros_pipeline')
     gpd_config_dir = get_package_share_directory('dgl_ros_models')
+    pipeline_params= os.path.join(get_package_share_directory('dgl_ros_pipeline'), 'config', 'pipeline_params.yaml')
+
 
     realsense_launch = IncludeLaunchDescription( # elindítja a kamerát, ami a pointcloud topicokat publikálja
         PythonLaunchDescriptionSource(
@@ -55,9 +48,9 @@ def generate_launch_description():
             # 127-es labor
             "--x", "0",
             "--y", "0",
-            "--z", "0.7",
-            "--roll", "0",
-            "--pitch", "0.87266",
+            "--z", "0.71",
+            "--roll", "0.043",
+            "--pitch", "0.861",
             "--yaw", "0",
             "--frame-id", "world",
             "--child-frame-id", "camera_link",
@@ -91,6 +84,7 @@ def generate_launch_description():
         executable="object_detector",
         name="object_detector",
         output="screen",
+        parameters=[pipeline_params],
     )
 
     grasp_client = Node( # elindítja a grasp clientet
@@ -98,6 +92,7 @@ def generate_launch_description():
         executable="grasp_client",
         name="grasp_client",
         output="screen",
+        parameters=[pipeline_params],
     )
 
     wait_for_camera = ExecuteProcess(

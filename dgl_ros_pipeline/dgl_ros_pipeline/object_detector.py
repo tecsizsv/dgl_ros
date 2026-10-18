@@ -1,24 +1,13 @@
 import cv2
 import rclpy
+import cv_bridge
 from rclpy.node import Node
 from rclpy.executors import ExternalShutdownException
-from sensor_msgs.msg import Image, CompressedImage
-from vision_msgs.msg import Detection2D, Detection2DArray, ObjectHypothesisWithPose
-from rclpy.qos import qos_profile_sensor_data
-import cv_bridge
 from ultralytics import YOLO
-from ultralytics import YOLOWorld
 from ultralytics.utils.plotting import Annotator, Colors
-import numpy as np
-
-# qos_profile_sensor_data: Quality of Service (QoS) profile
-CROP_X1 = 440
-CROP_Y1= 20
-CROP_X2 = 1090
-CROP_Y2 = 720
-
-# Color palette, one color per class_id
-PALETTE = np.random.randint(0, 255, (80, 3), dtype=np.uint8)
+from sensor_msgs.msg import Image
+from vision_msgs.msg import Detection2D, Detection2DArray, ObjectHypothesisWithPose
+from rclpy.qos import qos_profile_sensor_data # qos_profile_sensor_data: Quality of Service (QoS) profile
 
 class ObjectDetector(Node):
 
@@ -27,15 +16,36 @@ class ObjectDetector(Node):
 
         self._bridge = cv_bridge.CvBridge()
 
-        # Loading YOLO model
-        self._model = YOLO("yolo26m-objv1-150.pt") # Objects 365 data set
-        #self._model = YOLO("yolo26m.pt") # COCO data set
-        #self._model = YOLOWorld("yolov8s-world.pt") # World data set
-        #self._model = YOLO("yolov8s-world.pt") # World data set
-        #self._model.set_classes(["cardboard box", "battery", "bottle", "rod","mug"])
         self._colors = Colors()  # For consistent colors across runs
+        
+        # Loading YOLO model:
+        #   Objects 365 data set: yolo26m-objv1-150.pt
+        #   COCO data set: yolo26m.pt
+        #   World model: yolov8s-world.pt
+        self.declare_parameter('model', 'yolo26m-objv1-150.pt')
+        model_name = self.get_parameter('model').value
+        self._model = YOLO(model_name)
 
-        self.cropping = False  # Flag to enable/disable cropping
+        # In case of the world-model the class set:
+        self.declare_parameter('classes', ["cardboard box", "battery", "bottle", "rod","mug"])
+        if '-world' in model_name:
+            self._model.set_classes(self.get_parameter('classes').value)
+
+        # Confidence of the detection
+        self.declare_parameter('conf', 0.6)
+        self.conf = self.get_parameter('conf').value
+
+        # Device to run YOLO on
+        self.declare_parameter('device', "cuda:0")
+        self.device = self.get_parameter('device').value
+
+        # Flag to enable/disable cropping:
+        self.declare_parameter('cropping', False)
+        self.cropping = self.get_parameter('cropping').value
+
+        # Size of the crop:
+        self.declare_parameter('crop', [440, 20, 1090, 720])
+        self.crop_x1, self.crop_y1, self.crop_x2, self.crop_y2 = self.get_parameter('crop').value
     
         # Subscribers:
         self._img_sub =self.create_subscription(Image, "/camera/camera/color/image_raw", self.image_callback, qos_profile_sensor_data)
@@ -57,13 +67,13 @@ class ObjectDetector(Node):
 
             if self.cropping:
                 #image[y1:y2, x1:x2]
-                yolo_input = image[CROP_Y1:CROP_Y2, CROP_X1:CROP_X2]
-                self.get_logger().info("Cropping enabled: Using cropped image for YOLO detection.")
+                yolo_input = image[self.crop_y1:self.crop_y2, self.crop_x1:self.crop_x2]
+                self.get_logger().debug("Cropping enabled: Using cropped image for YOLO detection.")
             else:
                 yolo_input = image
 
             # Run YOLO model on the converted image
-            result = self._model(yolo_input, verbose=False, conf=0.6, device="cuda:0")[0]
+            result = self._model(yolo_input, verbose=False, conf=self.conf, device=self.device)[0]
 
             # Create Detection2DArray msg
             detection_array = Detection2DArray()
@@ -81,10 +91,10 @@ class ObjectDetector(Node):
 
                 if self.cropping:
                     # Adjust bounding box coordinates to the original image if cropped image used
-                    x1 = x1 + CROP_X1
-                    y1 = y1 + CROP_Y1
-                    x2 = x2 + CROP_X1
-                    y2 = y2 + CROP_Y1
+                    x1 = x1 + self.crop_x1
+                    y1 = y1 + self.crop_y1
+                    x2 = x2 + self.crop_x1
+                    y2 = y2 + self.crop_y1
 
                 # Set bounding box center and size (vision_msgs BoundingBox2D uses Pose2D for center (nested!))
                 detection.bbox.center.position.x = float((x1 + x2) / 2)
@@ -115,7 +125,7 @@ class ObjectDetector(Node):
             image = annotator.result()
             # Drawing a rectangle to show the cropped area on the original image
             if self.cropping:
-                cv2.rectangle(image, (CROP_X1, CROP_Y1), (CROP_X2, CROP_Y2), (0, 0, 255), 3,)
+                cv2.rectangle(image, (self.crop_x1, self.crop_y1), (self.crop_x2, self.crop_y2), (0, 0, 255), 3,)
             
             # Publish detections and annotated image
             self._detections_pub.publish(detection_array)

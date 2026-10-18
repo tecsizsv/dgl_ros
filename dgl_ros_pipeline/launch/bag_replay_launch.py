@@ -6,23 +6,16 @@ from launch.actions import (
     ExecuteProcess,
     TimerAction,
     RegisterEventHandler,
-    LogInfo,
-)
-from launch.launch_description_sources import PythonLaunchDescriptionSource
+    LogInfo,)
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
-from launch.event_handlers import (
-    OnExecutionComplete,
-    OnProcessExit,
-    OnProcessIO,
-    OnProcessStart,
-    OnShutdown
-)
+from launch.event_handlers import  OnProcessStart
 
 def generate_launch_description():
     # Ez a telepített (share) mappára mutat, nem a forrásmappára
     rviz_config_dir = get_package_share_directory('dgl_ros_pipeline')
     gpd_config_dir = get_package_share_directory('dgl_ros_models')
+    pipeline_params= os.path.join(get_package_share_directory('dgl_ros_pipeline'), 'config', 'pipeline_params.yaml')
 
     rosbag_name_arg = DeclareLaunchArgument('rosbag_name', default_value='cam_battery_pose2', description='Name of the rosbag to play')
     bag_play = ExecuteProcess(
@@ -76,6 +69,7 @@ def generate_launch_description():
         executable="object_detector",
         name="object_detector",
         output="screen",
+        parameters=[pipeline_params],
     )
 
     gpd_node = Node(
@@ -97,6 +91,7 @@ def generate_launch_description():
         executable="grasp_client",
         name="grasp_client",
         output="screen",
+        parameters=[pipeline_params],
     )
     
     return LaunchDescription([
