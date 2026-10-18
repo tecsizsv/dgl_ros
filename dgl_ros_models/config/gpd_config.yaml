@@ -4,39 +4,46 @@ hand_geometry_filename = 0
 # Path to config file for volume and image geometry
 image_geometry_filename = 0
 
-# ==== Robot Hand Geometry ==== (m)
+# ==== HAND GEOMETRY ==== (m)
 #   finger_width: the width of the finger
-#   outer_diameter: the diameter of the robot hand (= maximum aperture + 2 * finger width)
+#   hand_outer_diameter: the diameter of the robot hand (= maximum aperture + 2 * finger width)
+#     -> how wide the hand can open 
 #   hand_depth: the finger length (measured from hand base to finger tip)
+#     -> how far the hand can reach in the object
 #   hand_height: the height of the hand
+#     -> how thick the hand is perpendicular to the direction of approach
 #   init_bite: the minimum amount of the object to be covered by the hand
-# Panda (Visual approximation)
+#     -> how much the hand should bite into the object
+
+# Panda (visual approximation)
 # finger_width = 0.025
 # hand_outer_diameter = 0.1
 # hand_depth = 0.035
 # hand_height = 0.0266
-
+#
+# Unknown source
 # finger_width = 0.02
 # hand_outer_diameter = 0.08
 # hand_depth = 0.035
 # hand_height = 0.025
 # init_bite = 0.015
-
-#ur5_hand_geometry.cfg
+#
+# ur5_hand_geometry.cfg
 # finger_width = 0.01
 # hand_outer_diameter = 0.105
 # hand_depth = 0.06
 # hand_height = 0.02
 # init_bite = 0.01
-
-#rnd by me
+ 
+# OnRobot RG2 (estimated, to be measured and checked against the datasheet)
 finger_width = 0.004
-hand_outer_diameter = 0.098 #how wide the hand can open (= maximum aperture + 2 * finger width)
-hand_depth = 0.042 #how far the the hand can reach in the object
-hand_height = 0.036 #how thick the hand is perpendicular to the direction of approach
-init_bite = 0.01 #how much the hand should bite into the object
+hand_outer_diameter = 0.098 # = max_aperture (0.09) + 2 * finger_width
+hand_depth = 0.042
+hand_height = 0.036
+init_bite = 0.01
 
-# ==== Grasp Descriptor ==== (cm) //should be left alone, should be same as what the neural network was  trained on
+# ==== GRASP IMAGE GEOMETRY ==== (m)
+# Leave as is (because it should be same as what the neural network was trained on):
 #   volume_width: the width of the cube inside the robot hand
 #   volume_depth: the depth of the cube inside the robot hand
 #   volume_height: the height of the cube inside the robot hand
@@ -48,78 +55,89 @@ volume_height = 0.025
 image_size = 60
 image_num_channels = 15
 
-# Path to directory that contains neural network parameters
-#weights_file = /workspaces/grasping/gpd/models/lenet/15channels/params/
+# ==== CLASSIFIER ====
+# weights_file: directory that contains the neural network parameters (built-in LeNet)
+# model_file, batch_size (= 1): only used by other classifier backends, not by the built-in LeNet
 weights_file = gpd/models/lenet/15channels/params/
 
-# Preprocessing of point cloud
-#   voxelize: if the cloud gets voxelized/downsampled //voxelsize in meters
-#   remove_outliers: if statistical outliers are removed from the cloud (used to remove noise) //turn on if cloud noisy
-#   workspace: the workspace of the robot (dimensions of a cube centered at origin of point cloud) //discard everything outside
-#   camera_position: the position of the camera from which the cloud was taken
+# ==== CLOUD PREPROCESSING ====
+#   voxelize: if the cloud gets downsampled (voxelsize in meters)
+#   remove_outliers: if statistical outliers are removed from the cloud (used to remove noise)
+#     -> turn on if cloud noisy
+#   workspace: discard every point outside this box
+#     -> xmin xmax ymin ymax zmin zmax, in the POINT CLOUD frame (camera_depth_optical_frame),
+#        so z is the distance from the camera, not the height above the table
+#     -> kept large on purpose: gpd.cpp already crops the cloud in the world frame
+#        with the workspace sent by grasp_client
+#   camera_position: position of the camera relative to the point cloud
+#     -> 0 0 0, because the cloud is in the camera frame
 #   sample_above_plane: only draws samples which do not belong to the table plane
+#   normals_radius (= 0.030): radius (m) used to estimate the surface normals
+#   refine_normals_k (= 0): neighbours used to refine the normals (0 = off)
 voxelize = 1
-#voxel_size = 0.001 #from dgl_ros/.../gpd_config.yaml
-voxel_size = 0.003 #from gpd/.../eigen_params.cfg
+voxel_size = 0.003 # from gpd/.../eigen_params.cfg: 0.003 | from dgl_ros/.../gpd_config.yaml: 0.001
 remove_outliers = 1
-# workspace = xmin xmax ymin ymax zmin zmax
-# table size: ~1.5 x 1.37 x 0.75 ->  sum y: 1.52 sum x: 1.37
-# camera in world (from table): 1.95 -> sum z: 1.95
+
+# Earlier workspace values (5G Lab, camera looking straight down, so camera z = depth):
+#   table ~1.5 x 1.37 m, camera 1.95 m above the table
 #workspace = -0.4 0.9 -0.72 0.78 0 1.95 #full table, from the table to the camera
-workspace = -0.4 0.9 -0.72 0.78 0 1.75 #full table, from above the talbe to the camera
 #workspace = -0.4 0.4 -0.72 0.78 0 1.6 #not the full table, from above the talbe to the camera
+workspace = -0.4 0.9 -0.72 0.78 0 1.75 #full table, from above the talbe to the camera
+camera_position = 0 0 0 # before: 0 0.3 1
+sample_above_plane = 1
+# normals_radius = 0.030   (default)
+# refine_normals_k = 0     (default)
 
-#should be set: where is the camera relative to the point cloud
-#camera_position = 0 0.3 1
-camera_position = 0 0 0
-#sample_above_plane = 1 #from dgl_ros/.../gpd_config.yaml
-sample_above_plane = 1 #from gpd/.../eigen_params.cfg
-
-#tf from robot base to camera [x y z roll pitch yaw] #not used in ur5.cfg
-# tf_base_cam = 0.085 0.017 0.524 0 0.8 0
-# tf_cam_opt = 0 0 0 0 0 0
-
-# Grasp candidate generation
-#   num_samples: the number of samples to be drawn from the point cloud
+# ==== CANDIDATE GENERATION ====
+#   num_samples: the number of points sampled from the cloud (more = better coverage, slower)
 #   num_threads: the number of CPU threads to be used
-#   nn_radius: the radius for the neighborhood search (meters)
-#   num_orientations: the number of robot hand orientations to evaluate
-#   rotation_axes: the axes about which the point neighborhood gets rotated
+#   nn_radius: neighbourhood radius (m) to estimate the local coordinate system at each sample
+#   hand_axes: around which axes it rotates the hand (0: approach, 1: binormal, 2: axis)
+#   num_orientations: the number of hand orientations evaluated per sample
+#   num_finger_placements: the number of lateral hand positions evaluated per orientation
+#   deepen_hand: if the hand is pushed further onto the object
+#   friction_coeff: angle of the friction cone in degrees
+#   min_viable: minimum number of points required on each side to count as antipodal
 num_samples = 290
 num_threads = 4
 nn_radius = 0.03 #~0.01-0.03 based on object size
+hand_axes = 2
 num_orientations = 16
 num_finger_placements = 10
-hand_axes = 2
 deepen_hand = 0
+# friction_coeff = 20.00   (default)
+# min_viable = 6           (default)
 
-# Filtering of candidates (mm) //its probably meter
+# ==== CANDIDATE FILTERING ==== (m)
+#   workspace_grasps: keep only grasps inside this box, in the POINT CLOUD frame
+#     -> dimensions of a cube centered at origin of point cloud
+#     -> should be smaller than <workspace>
 #   min_aperture: the minimum gripper width
 #   max_aperture: the maximum gripper width
-#   workspace_grasps: dimensions of a cube centered at origin of point cloud; should be smaller than <workspace>
+#   filter_approach_direction: turn approach direction filtering on/off
+#   direction: the approach direction to compare against, in the POINT CLOUD frame
+#   thresh_rad: angle in radians above which grasps are filtered
+workspace_grasps = -0.4 0.9 -0.72 0.78 0 1.7
 min_aperture = 0.0 #fully closed
 max_aperture = 0.09
-#workspace = -0.4 0.9 -0.72 0.78 0 1.95
-#workspace_grasps = -0.2 0.4 -0.25 0.3 0.0 1.6
-workspace_grasps = -0.4 0.9 -0.72 0.78 0 1.7
 
-# Filtering of candidates based on their approach direction
-#   filter_approach_direction: turn filtering on/off
-#   direction: the direction to compare against
-#   angle_thresh: angle in radians above which grasps are filtered
 filter_approach_direction = 1
-direction = 0 0 1  # only from above
+# direction: world "down" expressed in camera_depth_optical_frame (127 lab camera pose)
+#   -> depends on the camera pose: recompute as -(3rd row of R from world <- camera) if the camera moves
+#   -> 5G Lab (camera looking straight down): 0 0 1
+direction = 0.04 0.65 0.76
 thresh_rad = 1.5
 
-# Clustering of grasps
+# === CLUSTERING ===
 #   min_inliers: minimum number of inliers per cluster; set to 0 to turn off clustering
-min_inliers = 2
+min_inliers = 0
 
-# Grasp selection
+# === GRASP SELECTION ===
 #   num_selected: number of selected grasps (sorted by score)
 num_selected = 1 #original 5
 
-# Visualization
+# ==== PLOTTING ====
+# Note: the plot windows block grasp detection until they are closed.
 #   plot_normals: plot the surface normals
 #   plot_samples: plot the samples
 #   plot_candidates: plot the grasp candidates
