@@ -1,4 +1,5 @@
 import os
+import yaml
 from launch import LaunchDescription
 from launch.substitutions import LaunchConfiguration
 from launch.actions import (
@@ -16,6 +17,9 @@ def generate_launch_description():
     rviz_config_dir = get_package_share_directory('dgl_ros_pipeline')
     gpd_config_dir = get_package_share_directory('dgl_ros_models')
     pipeline_params= os.path.join(get_package_share_directory('dgl_ros_pipeline'), 'config', 'pipeline_params.yaml')
+    with open(pipeline_params) as f:
+        params = yaml.safe_load(f)
+    cam = params['camera_base_tf']['ros__parameters']
 
     rosbag_name_arg = DeclareLaunchArgument('rosbag_name', default_value='cam_battery_pose2', description='Name of the rosbag to play')
     bag_play = ExecuteProcess(
@@ -35,22 +39,12 @@ def generate_launch_description():
         executable="static_transform_publisher",
         name="camera_base_tf",
         arguments=[
-            # 5G labor
-            # "--x", "0",
-            # "--y", "0",
-            # "--z", "1.95",
-            # "--roll", "0",
-            # "--pitch", "1.5707963",
-            # "--yaw", "0",
-            # "--frame-id", "world",
-            # "--child-frame-id", "camera_link",
-            # 127-es labor
-            "--x", "0",
-            "--y", "0",
-            "--z", "0.71", #camera distance from the table in meter
-            "--roll", "0.043",
-            "--pitch", "0.861",
-            "--yaw", "0",
+            "--x", str(cam['x']),
+            "--y", str(cam['y']),
+            "--z", str(cam['z']),
+            "--roll", str(cam['roll']),
+            "--pitch", str(cam['pitch']),
+            "--yaw", str(cam['yaw']),
             "--frame-id", "world",
             "--child-frame-id", "camera_link",
         ],
