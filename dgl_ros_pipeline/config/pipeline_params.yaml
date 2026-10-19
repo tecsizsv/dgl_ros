@@ -8,15 +8,15 @@ camera_base_tf:
     # Other camera:
     x: 0.0
     y: 0.0
-    z: 0.71 # camera height above the table
-    roll: 0.043
-    pitch: 0.861
-    yaw: 0.0
+    z: 0.69 # camera height above the table
+    roll: 0.02 # around the x-axis
+    pitch: 1.2 # around the y-axis
+    yaw: 0.0 # around the z-axis
 
 grasp_client:
   ros__parameters:
-    z_min: 0.0 # just above the table
-    z_max: 0.15 # the highest expected object
+    z_min: -0.02 # just above the table
+    z_max: 0.3 # the highest expected object
     margin: 0.05
     camera_frame: camera_color_optical_frame
 

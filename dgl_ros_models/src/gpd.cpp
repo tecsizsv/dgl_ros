@@ -172,7 +172,7 @@ std::unique_ptr<PointCloud2> Gpd::obsFromSrcs(std::shared_ptr<PointCloud2> msg)
   pcl::fromROSMsg(*msg, *cloud);
 
   // Segementation works best with XYXRGB
-  dgl::util::cloud::removeTable(cloud);
+  //dgl::util::cloud::removeTable(cloud);
 
   // Return the final observation
   std::unique_ptr<PointCloud2> cloud_msg = std::make_unique<PointCloud2>();

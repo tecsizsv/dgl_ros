@@ -98,7 +98,7 @@ sample_above_plane = 1
 #   deepen_hand: if the hand is pushed further onto the object
 #   friction_coeff: angle of the friction cone in degrees
 #   min_viable: minimum number of points required on each side to count as antipodal
-num_samples = 290
+num_samples = 500
 num_threads = 4
 nn_radius = 0.03 #~0.01-0.03 based on object size
 hand_axes = 2
@@ -125,7 +125,7 @@ filter_approach_direction = 1
 # direction: world "down" expressed in camera_depth_optical_frame (127 lab camera pose)
 #   -> depends on the camera pose: recompute as -(3rd row of R from world <- camera) if the camera moves
 #   -> 5G Lab (camera looking straight down): 0 0 1
-direction = 0.04 0.65 0.76
+direction = 0.07 0.362 0.932
 thresh_rad = 1.5
 
 # === CLUSTERING ===
@@ -151,4 +151,4 @@ plot_candidates = 0
 plot_filtered_candidates = 0
 plot_valid_grasps = 0
 plot_clustered_grasps = 0
-plot_selected_grasps = 0
+plot_selected_grasps = 1
