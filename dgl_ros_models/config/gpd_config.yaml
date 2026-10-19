@@ -36,9 +36,9 @@ image_geometry_filename = 0
 # init_bite = 0.01
  
 # OnRobot RG2 (estimated, to be measured and checked against the datasheet)
-finger_width = 0.004
+finger_width = 0.004 # TODO: measure it
 hand_outer_diameter = 0.098 # = max_aperture (0.09) + 2 * finger_width
-hand_depth = 0.042
+hand_depth = 0.042 # TODO: measure it
 hand_height = 0.036
 init_bite = 0.01
 
@@ -119,7 +119,7 @@ deepen_hand = 0
 #   thresh_rad: angle in radians above which grasps are filtered
 workspace_grasps = -0.4 0.9 -0.72 0.78 0 1.7
 min_aperture = 0.0 #fully closed
-max_aperture = 0.09
+max_aperture = 0.1
 
 filter_approach_direction = 1
 # direction: world "down" expressed in camera_depth_optical_frame (127 lab camera pose)
