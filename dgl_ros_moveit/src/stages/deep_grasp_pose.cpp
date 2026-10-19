@@ -98,39 +98,65 @@ template <class ActionT>
 void DeepGraspPose<ActionT>::feedback_callback(const GoalHandleSharedPtr goal_handle,
                                                   const std::shared_ptr<const Feedback> feedback)
 {
+  // (void)goal_handle;
+  // // each candidate should have a cost
+  // if (feedback->grasp_candidates.size() != feedback->costs.size())
+  // {
+  //   RCLCPP_ERROR(this->nh_->get_logger(), "Invalid input: each grasp candidate needs an associated cost");
+  // }
+  // else
+  // {
+  //   RCLCPP_INFO(this->nh_->get_logger(),
+  //               "Grasp generated feedback received %lu candidates: ", feedback->grasp_candidates.size());
+
+  //   grasp_candidates_.resize(feedback->grasp_candidates.size());
+  //   costs_.resize(feedback->costs.size());
+
+  //   grasp_candidates_ = feedback->grasp_candidates;
+  //   costs_ = feedback->costs;
+
+  //   found_candidates_ = true;
+  // }
   (void)goal_handle;
-  // each candidate should have a cost
-  if (feedback->grasp_candidates.size() != feedback->costs.size())
-  {
-    RCLCPP_ERROR(this->nh_->get_logger(), "Invalid input: each grasp candidate needs an associated cost");
-  }
-  else
-  {
-    RCLCPP_INFO(this->nh_->get_logger(),
-                "Grasp generated feedback received %lu candidates: ", feedback->grasp_candidates.size());
-
-    grasp_candidates_.resize(feedback->grasp_candidates.size());
-    costs_.resize(feedback->costs.size());
-
-    grasp_candidates_ = feedback->grasp_candidates;
-    costs_ = feedback->costs;
-
-    found_candidates_ = true;
-  }
+  (void)feedback;  // feedback is empty; grasp candidates arrive in the result
 }
 
 template <class ActionT>
 void DeepGraspPose<ActionT>::result_callback(const WrappedResult& result)
 {
-  if (result.code == rclcpp_action::ResultCode::SUCCEEDED)
+  // if (result.code == rclcpp_action::ResultCode::SUCCEEDED)
+  // {
+  //   RCLCPP_INFO(this->nh_->get_logger(), "Found grasp candidates (result): %s",
+  //               result.result->grasp_state.c_str());
+  // }
+  // else
+  // {
+  //   RCLCPP_ERROR(this->nh_->get_logger(), "No grasp candidates found (state): %s",
+  //                result.result->grasp_state.c_str());
+  // }
+
+  if (result.code != rclcpp_action::ResultCode::SUCCEEDED)
   {
-    RCLCPP_INFO(this->nh_->get_logger(), "Found grasp candidates (result): %s",
-                result.result->grasp_state.c_str());
+    RCLCPP_ERROR(this->nh_->get_logger(), "No grasp candidates found ");
+    return;
+  }
+
+  // each candidate should have a cost
+  if (result.result->grasp_candidates.size() != result.result->costs.size())
+  {
+    RCLCPP_ERROR(this->nh_->get_logger(), "Invalid input: each grasp candidate needs an associated cost");
   }
   else
   {
-    RCLCPP_ERROR(this->nh_->get_logger(), "No grasp candidates found (state): %s",
-                 result.result->grasp_state.c_str());
+    RCLCPP_INFO(this->nh_->get_logger(), "Grasp generated result received %lu candidates: ", result.result->grasp_candidates.size());
+
+    grasp_candidates_.resize(result.result->grasp_candidates.size());
+    costs_.resize(result.result->costs.size());
+
+    grasp_candidates_ = result.result->grasp_candidates;
+    costs_ = result.result->costs;
+
+    found_candidates_ = true;
   }
 }
 
