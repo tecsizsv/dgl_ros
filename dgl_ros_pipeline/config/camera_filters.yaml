@@ -12,3 +12,4 @@ temporal_filter.enable: true
 temporal_filter.filter_smooth_alpha: 0.5
 temporal_filter.filter_smooth_delta: 20
 temporal_filter.holes_fill: 0
+align_depth.enable: true

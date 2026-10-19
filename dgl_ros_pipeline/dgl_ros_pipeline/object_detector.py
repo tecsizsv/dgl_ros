@@ -57,6 +57,10 @@ class ObjectDetector(Node):
         # Logging some info
         self.get_logger().info(f"Subscribing to: {self._img_sub.topic_name}")
         self.get_logger().info(f"Publishing detections to: {self._detections_pub.topic_name}")
+
+        # Should use yolo
+        self.declare_parameter('use_yolo', False)
+        self.use_yolo = self.get_parameter('use_yolo').value
     
     #end of __init__
 
@@ -72,67 +76,88 @@ class ObjectDetector(Node):
             else:
                 yolo_input = image
 
-            # Run YOLO model on the converted image
-            result = self._model(yolo_input, verbose=False, conf=self.conf, device=self.device)[0]
-
-            # Create Detection2DArray msg
-            detection_array = Detection2DArray()
-            detection_array.header = msg.header
-
-            annotator = Annotator(image, line_width=3)
-
-            # Process each detection
-            for box in result.boxes:
+            if not self.use_yolo:
                 detection = Detection2D()
                 detection.header = msg.header
-
-                # Get bounding box coordinates (xyxy format)
-                x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
-
-                if self.cropping:
-                    # Adjust bounding box coordinates to the original image if cropped image used
-                    x1 = x1 + self.crop_x1
-                    y1 = y1 + self.crop_y1
-                    x2 = x2 + self.crop_x1
-                    y2 = y2 + self.crop_y1
-
-                # Set bounding box center and size (vision_msgs BoundingBox2D uses Pose2D for center (nested!))
-                detection.bbox.center.position.x = float((x1 + x2) / 2)
-                detection.bbox.center.position.y = float((y1 + y2) / 2)
-
-                detection.bbox.center.theta = 0.0 # no rotation for 2D detection
-                detection.bbox.size_x = float(x2 - x1)
-                detection.bbox.size_y = float(y2 - y1)
-
-                # Get class ID, class name, and confidence score
-                class_id = int(box.cls[0])
-                class_name = result.names[class_id]
-                score = float(box.conf[0])
+                detection.bbox.center.position.x = image.shape[1] / 2.0
+                detection.bbox.center.position.y = image.shape[0] / 2.0
+                detection.bbox.center.theta = 0.0
+                detection.bbox.size_x = image.shape[1] * 0.5
+                detection.bbox.size_y = image.shape[0] * 0.5
+                detection_array = Detection2DArray()
+                detection_array.header = msg.header
+                detection_array.detections.append(detection)
+                self._detections_pub.publish(detection_array)
 
                 # Annotate the image with bounding boxes and class labels with confidence score
-                text = f"{class_name}: {score:.2f}"
-                color = self._colors(class_id, True)
-                annotator.box_label((x1, y1, x2, y2), text, color)
+                annotator = Annotator(image, line_width=3)
+                color = self._colors(0, True)
+                annotator.box_label((image.shape[1] / 2.0 - detection.bbox.size_x / 2.0, image.shape[0] / 2.0 - detection.bbox.size_y / 2.0, image.shape[1] / 2.0 + detection.bbox.size_x / 2.0, image.shape[0] / 2.0 + detection.bbox.size_y / 2.0), "", color)
+                image2 = annotator.result()
+                self._annotated_img_pub.publish(self._bridge.cv2_to_imgmsg(image2, encoding="bgr8"))
+                return
+            else:
+                # Run YOLO model on the converted image
+                result = self._model(yolo_input, verbose=False, conf=self.conf, device=self.device)[0]
 
-                # Set detection hypothesis (class and confidence)(vision_msgs uses ObjectHypothesisWithPose[] results)
-                hypothesis = ObjectHypothesisWithPose()
-                hypothesis.hypothesis.class_id = str(class_id)
-                hypothesis.hypothesis.score = score
+                # Create Detection2DArray msg
+                detection_array = Detection2DArray()
+                detection_array.header = msg.header
 
-                detection.results.append(hypothesis)
-                detection_array.detections.append(detection)
+                annotator = Annotator(image, line_width=3)
 
-            image = annotator.result()
-            # Drawing a rectangle to show the cropped area on the original image
-            if self.cropping:
-                cv2.rectangle(image, (self.crop_x1, self.crop_y1), (self.crop_x2, self.crop_y2), (0, 0, 255), 3,)
-            
-            # Publish detections and annotated image
-            self._detections_pub.publish(detection_array)
+                # Process each detection
+                for box in result.boxes:
+                    detection = Detection2D()
+                    detection.header = msg.header
 
-            annotated_img = self._bridge.cv2_to_imgmsg(image, encoding="bgr8")
-            annotated_img.header = msg.header
-            self._annotated_img_pub.publish(annotated_img)
+                    # Get bounding box coordinates (xyxy format)
+                    x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+
+                    if self.cropping:
+                        # Adjust bounding box coordinates to the original image if cropped image used
+                        x1 = x1 + self.crop_x1
+                        y1 = y1 + self.crop_y1
+                        x2 = x2 + self.crop_x1
+                        y2 = y2 + self.crop_y1
+
+                    # Set bounding box center and size (vision_msgs BoundingBox2D uses Pose2D for center (nested!))
+                    detection.bbox.center.position.x = float((x1 + x2) / 2)
+                    detection.bbox.center.position.y = float((y1 + y2) / 2)
+
+                    detection.bbox.center.theta = 0.0 # no rotation for 2D detection
+                    detection.bbox.size_x = float(x2 - x1)
+                    detection.bbox.size_y = float(y2 - y1)
+
+                    # Get class ID, class name, and confidence score
+                    class_id = int(box.cls[0])
+                    class_name = result.names[class_id]
+                    score = float(box.conf[0])
+
+                    # Annotate the image with bounding boxes and class labels with confidence score
+                    text = f"{class_name}: {score:.2f}"
+                    color = self._colors(class_id, True)
+                    annotator.box_label((x1, y1, x2, y2), text, color)
+
+                    # Set detection hypothesis (class and confidence)(vision_msgs uses ObjectHypothesisWithPose[] results)
+                    hypothesis = ObjectHypothesisWithPose()
+                    hypothesis.hypothesis.class_id = str(class_id)
+                    hypothesis.hypothesis.score = score
+
+                    detection.results.append(hypothesis)
+                    detection_array.detections.append(detection)
+
+                image = annotator.result()
+                # Drawing a rectangle to show the cropped area on the original image
+                if self.cropping:
+                    cv2.rectangle(image, (self.crop_x1, self.crop_y1), (self.crop_x2, self.crop_y2), (0, 0, 255), 3,)
+                
+                # Publish detections and annotated image
+                self._detections_pub.publish(detection_array)
+
+                annotated_img = self._bridge.cv2_to_imgmsg(image, encoding="bgr8")
+                annotated_img.header = msg.header
+                self._annotated_img_pub.publish(annotated_img)
         
         except Exception as e:
             self.get_logger().error(f"Error processing image: {str(e)}")

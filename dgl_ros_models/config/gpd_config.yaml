@@ -134,7 +134,7 @@ min_inliers = 0
 
 # === GRASP SELECTION ===
 #   num_selected: number of selected grasps (sorted by score)
-num_selected = 1 #original 5
+num_selected = 3 #original 5
 
 # ==== PLOTTING ====
 # Note: the plot windows block grasp detection until they are closed.
@@ -151,4 +151,4 @@ plot_candidates = 0
 plot_filtered_candidates = 0
 plot_valid_grasps = 0
 plot_clustered_grasps = 0
-plot_selected_grasps = 1
+plot_selected_grasps = 0
