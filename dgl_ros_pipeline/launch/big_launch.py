@@ -9,6 +9,8 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 from launch.event_handlers import OnProcessExit
+from launch.actions import IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 def generate_launch_description():
 
@@ -19,6 +21,10 @@ def generate_launch_description():
     with open(pipeline_params) as f:
         params = yaml.safe_load(f)
     cam = params['camera_base_tf']['ros__parameters']
+
+    kinematics_file = os.path.join(get_package_share_directory("ur_moveit_config"), "config", "kinematics.yaml")
+    with open(kinematics_file) as f:
+        kinematics = yaml.safe_load(f)
 
     realsense_launch = IncludeLaunchDescription( # elindítja a kamerát, ami a pointcloud topicokat publikálja
         PythonLaunchDescriptionSource(
@@ -48,6 +54,11 @@ def generate_launch_description():
             "--frame-id", "world",
             "--child-frame-id", "camera_link",
         ],
+    )
+
+    moveit = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(os.path.join(get_package_share_directory("ur_moveit_config"), "launch", "ur_moveit.launch.py")),
+        launch_arguments={"ur_type": "ur5e", "launch_rviz": "false"}.items(),
     )
 
     rviz2 = Node( # elindítja az rviz-t
@@ -103,6 +114,7 @@ def generate_launch_description():
      ),
         realsense_launch,
         static_tf,
+        moveit,
         rviz2,
         object_detection,
         grasp_client,

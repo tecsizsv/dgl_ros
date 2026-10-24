@@ -11,6 +11,8 @@ from launch.actions import (
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 from launch.event_handlers import  OnProcessStart
+from launch.actions import IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 def generate_launch_description():
     # Ez a telepített (share) mappára mutat, nem a forrásmappára
@@ -21,7 +23,11 @@ def generate_launch_description():
         params = yaml.safe_load(f)
     cam = params['camera_base_tf']['ros__parameters']
 
-    rosbag_name_arg = DeclareLaunchArgument('rosbag_name', default_value='cam_battery_pose2', description='Name of the rosbag to play')
+    kinematics_file = os.path.join(get_package_share_directory("ur_moveit_config"), "config", "kinematics.yaml")
+    with open(kinematics_file) as f:
+        kinematics = yaml.safe_load(f)
+
+    rosbag_name_arg = DeclareLaunchArgument('rosbag_name', default_value='cam_aligned_mug2', description='Name of the rosbag to play')
     bag_play = ExecuteProcess(
         cmd=[
             "ros2", "bag", "play",
@@ -50,11 +56,17 @@ def generate_launch_description():
         ],
     )
 
+    moveit = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(os.path.join(get_package_share_directory("ur_moveit_config"), "launch", "ur_moveit.launch.py")),
+        launch_arguments={"ur_type": "ur5e", "launch_rviz": "false"}.items(),
+    )
+
     rviz2 = Node(
         package="rviz2",
         executable="rviz2",
         name="rviz2",
         arguments=["-d", os.path.join(rviz_config_dir, "config", "config.rviz")],
+        parameters=[{"robot_description_kinematics": kinematics}],
         output="screen",
     )
 
@@ -92,6 +104,7 @@ def generate_launch_description():
         rosbag_name_arg,
         bag_play,
         static_tf,
+        moveit,
         rviz2,
         object_detection,
         RegisterEventHandler(
