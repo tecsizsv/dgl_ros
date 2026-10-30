@@ -66,6 +66,7 @@ def generate_launch_description():
         executable="rviz2",
         name="rviz2",
         arguments=["-d", os.path.join(rviz_config_dir, "config", "config.rviz")],
+        parameters=[{"robot_description_kinematics": kinematics}],
         output="screen",
     )
 
