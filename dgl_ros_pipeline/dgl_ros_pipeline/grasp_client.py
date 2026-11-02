@@ -12,6 +12,8 @@ from vision_msgs.msg import Detection2DArray
 from sensor_msgs.msg import CameraInfo
 from tf2_ros import Buffer, TransformListener, TransformException
 from scipy.spatial.transform import Rotation
+from moveit.planning import MoveItPy
+from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion
 
 class GraspClient(Node):
 
@@ -28,6 +30,9 @@ class GraspClient(Node):
 
         # Creating a publisher for visualization markers.
         self._marker_pub = self.create_publisher(MarkerArray, 'grasp_markers', 10)
+
+        # Creating a publisher for target pose for the robot to move to
+        self._target_pose_pub = self.create_publisher(PoseStamped, 'target_pose', 10)
 
         # Subscriber to YOLO detection messages (Detection2DArray)
         self._det_sub = self.create_subscription(Detection2DArray, 'detections', self.detection_callback, 10)
@@ -67,6 +72,11 @@ class GraspClient(Node):
         self.world_frame = self.get_parameter('world_frame').value
         self.declare_parameter('camera_frame', 'camera_color_optical_frame')
         self.camera_frame = self.get_parameter('camera_frame').value
+
+        # MoveIt parameters:
+        self.declare_parameter('rg2_hand_shift', 0.144) 
+        self.rg2_hand_shift = self.get_parameter('rg2_hand_shift').value
+
     #end of __init__
 
     #Method waits for the action server to be available, then sends a goal to the server. It returns a future that we can later wait on.
@@ -106,7 +116,14 @@ class GraspClient(Node):
 
         self.get_logger().info(message_to_yaml(result))
 
+        if not result.grasp_candidates:
+            self.get_logger().info('No grasp candidates found.')
+            self.busy = False
+            return
+
         self.publish_grasp_markers(result.grasp_candidates)
+
+        self.move_to_grasppose(result.grasp_candidates[0]) # Move to the first grasp candidate
 
         self.busy = False
     #end of get_result_callback
@@ -175,6 +192,7 @@ class GraspClient(Node):
             marker_array.markers.append(marker)
 
         self._marker_pub.publish(marker_array)  
+
     #end of publish_grasp_markers
         
     def detection_callback(self, msg):
@@ -347,6 +365,33 @@ class GraspClient(Node):
         self.camera_read = True
         self.destroy_subscription(self._cam_info_sub)  # Unsubscribe after receiving the first message
     #end of camera_info_callback
+
+    def move_to_grasppose(self,grasp_candidate):
+        # Getting the transformation matrix from the grasp frame to the target frame (the point where the gripper's palm will be)
+        T_grasp_to_target = np.eye(4)
+        T_grasp_to_target[:3, :3] = Rotation.from_euler('y', 90, degrees=True).as_matrix()
+        T_grasp_to_target[:3, 3] = [-self.rg2_hand_shift, 0, 0] # Shift along the x-axis (because x in the grasp's frame will be the z of the gripper frame) by rg2_hand_shift
+
+        # Converting the grasp candidate's pose to a matrix
+        grasp_pose_mtx = np.eye(4)
+        grasp_pose_mtx[:3, :3] = Rotation.from_quat([grasp_candidate.pose.orientation.x, grasp_candidate.pose.orientation.y, grasp_candidate.pose.orientation.z, grasp_candidate.pose.orientation.w]).as_matrix()
+        grasp_pose_mtx[:3, 3] = [grasp_candidate.pose.position.x, grasp_candidate.pose.position.y, grasp_candidate.pose.position.z]
+
+        # Getting the target pose matrix by multiplying the grasp pose matrix with the transformation matrix
+        target_pose_mtx = grasp_pose_mtx @ T_grasp_to_target
+        p = target_pose_mtx[:3, 3]
+        q = Rotation.from_matrix(target_pose_mtx[:3, :3]).as_quat()  # x, y, z, w
+
+        # Converting the target pose matrix back to a Pose message
+        target_pose = PoseStamped()
+        target_pose.header.frame_id = grasp_candidate.header.frame_id  # Set the frame ID for the target pose  
+        target_pose.header.stamp = grasp_candidate.header.stamp  # Set the timestamp for the target pose
+        target_pose.pose.position = Point(x=float(p[0]), y=float(p[1]), z=float(p[2]))
+        target_pose.pose.orientation = Quaternion(x=float(q[0]), y=float(q[1]), z=float(q[2]), w=float(q[3]))
+
+        # Publish the target pose for visualization
+        self._target_pose_pub.publish(target_pose)
+    #end of move_to_grasppose
 
 def main(args=None):
     try:

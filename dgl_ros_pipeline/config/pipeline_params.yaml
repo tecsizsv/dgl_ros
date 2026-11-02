@@ -19,6 +19,7 @@ grasp_client:
     z_max: 0.2 # the highest expected object
     margin: 0.0
     camera_frame: camera_color_optical_frame
+    rg2_hand_shift: 0.144 # in meter the distance between the gripper base and the gripper's palm (the point where the fingers meet)
 
 object_detector:
   ros__parameters:

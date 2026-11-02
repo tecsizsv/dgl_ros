@@ -6,7 +6,7 @@ Panels:
       Expanded:
         - /RobotModel1/Description Topic1
       Splitter Ratio: 0.4676470458507538
-    Tree Height: 147
+    Tree Height: 257
   - Class: rviz_common/Selection
     Name: Selection
   - Class: rviz_common/Tool Properties
@@ -92,6 +92,10 @@ Visualization Manager:
           Value: false
         base_link_inertia:
           Value: false
+        cable_connector_0:
+          Value: false
+        cable_connector_1:
+          Value: false
         camera_color_frame:
           Value: false
         camera_color_optical_frame:
@@ -102,17 +106,37 @@ Visualization Manager:
           Value: false
         camera_link:
           Value: true
+        finger_width_mock_link:
+          Value: false
         flange:
           Value: false
         forearm_link:
           Value: false
         ft_frame:
           Value: false
+        gripper_tcp:
+          Value: false
+        left_finger_tip:
+          Value: false
+        left_inner_finger:
+          Value: false
+        left_inner_knuckle:
+          Value: false
+        left_outer_knuckle:
+          Value: false
+        onrobot_base_link:
+          Value: false
+        right_finger_tip:
+          Value: false
+        right_inner_finger:
+          Value: false
+        right_inner_knuckle:
+          Value: false
+        right_outer_knuckle:
+          Value: false
         shoulder_link:
           Value: false
         tool0:
-          Value: false
-        tool0_controller:
           Value: false
         upper_arm_link:
           Value: false
@@ -133,8 +157,7 @@ Visualization Manager:
         world:
           base_link:
             base:
-              tool0_controller:
-                {}
+              {}
             base_link_inertia:
               shoulder_link:
                 upper_arm_link:
@@ -144,7 +167,27 @@ Visualization Manager:
                         wrist_3_link:
                           flange:
                             tool0:
-                              {}
+                              onrobot_base_link:
+                                cable_connector_0:
+                                  {}
+                                cable_connector_1:
+                                  {}
+                                finger_width_mock_link:
+                                  {}
+                                gripper_tcp:
+                                  {}
+                                left_inner_knuckle:
+                                  {}
+                                left_outer_knuckle:
+                                  left_inner_finger:
+                                    left_finger_tip:
+                                      {}
+                                right_inner_knuckle:
+                                  {}
+                                right_outer_knuckle:
+                                  right_inner_finger:
+                                    right_finger_tip:
+                                      {}
                           ft_frame:
                             {}
           camera_link:
@@ -160,7 +203,7 @@ Visualization Manager:
       Enabled: true
       Name: MarkerArray
       Namespaces:
-        grasp_candidates: true
+        {}
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -169,7 +212,7 @@ Visualization Manager:
         Value: /grasp_markers
       Value: true
     - Class: rviz_default_plugins/Image
-      Enabled: true
+      Enabled: false
       Max Value: 1
       Median window: 5
       Min Value: 0
@@ -181,7 +224,7 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /annotated_image
-      Value: true
+      Value: false
     - Alpha: 1
       Class: rviz_default_plugins/RobotModel
       Collision Enabled: false
@@ -213,6 +256,20 @@ Visualization Manager:
           Show Axes: false
           Show Trail: false
           Value: true
+        cable_connector_0:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        cable_connector_1:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        finger_width_mock_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
         flange:
           Alpha: 1
           Show Axes: false
@@ -226,6 +283,53 @@ Visualization Manager:
           Alpha: 1
           Show Axes: false
           Show Trail: false
+        gripper_tcp:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        left_finger_tip:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        left_inner_finger:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        left_inner_knuckle:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        left_outer_knuckle:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        onrobot_base_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        right_finger_tip:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        right_inner_finger:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        right_inner_knuckle:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        right_outer_knuckle:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
         shoulder_link:
           Alpha: 1
           Show Axes: false
@@ -278,7 +382,7 @@ Visualization Manager:
       MoveIt_Planning_Attempts: 10
       MoveIt_Planning_Time: 5
       MoveIt_Use_Cartesian_Path: false
-      MoveIt_Use_Constraint_Aware_IK: false
+      MoveIt_Use_Constraint_Aware_IK: true
       MoveIt_Workspace:
         Center:
           X: 0
@@ -311,6 +415,20 @@ Visualization Manager:
             Show Axes: false
             Show Trail: false
             Value: true
+          cable_connector_0:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
+          cable_connector_1:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
+          finger_width_mock_link:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
           flange:
             Alpha: 1
             Show Axes: false
@@ -324,6 +442,53 @@ Visualization Manager:
             Alpha: 1
             Show Axes: false
             Show Trail: false
+          gripper_tcp:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+          left_finger_tip:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+          left_inner_finger:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
+          left_inner_knuckle:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
+          left_outer_knuckle:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
+          onrobot_base_link:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
+          right_finger_tip:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+          right_inner_finger:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
+          right_inner_knuckle:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
+          right_outer_knuckle:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
           shoulder_link:
             Alpha: 1
             Show Axes: false
@@ -380,7 +545,7 @@ Visualization Manager:
         Goal State Color: 250; 128; 0
         Interactive Marker Size: 0
         Joint Violation Color: 255; 0; 255
-        Planning Group: ur_manipulator
+        Planning Group: ur_onrobot_manipulator
         Query Goal State: true
         Query Start State: false
         Show Workspace: false
@@ -416,6 +581,20 @@ Visualization Manager:
             Show Axes: false
             Show Trail: false
             Value: true
+          cable_connector_0:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
+          cable_connector_1:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
+          finger_width_mock_link:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
           flange:
             Alpha: 1
             Show Axes: false
@@ -429,6 +608,53 @@ Visualization Manager:
             Alpha: 1
             Show Axes: false
             Show Trail: false
+          gripper_tcp:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+          left_finger_tip:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+          left_inner_finger:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
+          left_inner_knuckle:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
+          left_outer_knuckle:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
+          onrobot_base_link:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
+          right_finger_tip:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+          right_inner_finger:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
+          right_inner_knuckle:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
+          right_outer_knuckle:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
           shoulder_link:
             Alpha: 1
             Show Axes: false
@@ -467,6 +693,26 @@ Visualization Manager:
         Show Robot Visual: true
       Value: true
       Velocity_Scaling_Factor: 0.1
+    - Alpha: 1
+      Axes Length: 1
+      Axes Radius: 0.10000000149011612
+      Class: rviz_default_plugins/Pose
+      Color: 255; 25; 0
+      Enabled: true
+      Head Length: 0.30000001192092896
+      Head Radius: 0.10000000149011612
+      Name: Pose
+      Shaft Length: 1
+      Shaft Radius: 0.05000000074505806
+      Shape: Arrow
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /target_pose
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -513,25 +759,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 2.867733955383301
+      Distance: 2.278381824493408
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0.5171882510185242
-        Y: -0.084065742790699
-        Z: 0.09724226593971252
+        X: 0.36234328150749207
+        Y: 0.3088792860507965
+        Z: 0.4061962366104126
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.5197972059249878
+      Pitch: 0.9847971200942993
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 1.1312777996063232
+      Yaw: 5.867635250091553
     Saved: ~
 Window Geometry:
   Displays:
@@ -545,7 +791,7 @@ Window Geometry:
     collapsed: false
   MotionPlanning - Trajectory Slider:
     collapsed: false
-  QMainWindow State: 000000ff00000000fd0000000400000000000001d400000359fc020000000ffb0000001200530065006c0065006300740069006f006e00000001e10000009b0000005c00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c006100790073010000003b000000ce000000c700fffffffb0000000a0049006d006100670065010000010f000000f50000001600fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb0000000a0049006d00610067006501000001de000001110000000000000000fb0000000a0049006d00610067006501000001850000016a0000000000000000fb0000000c00430061006d006500720061010000023e000000b10000000000000000fb000000280020002d0020005400720061006a006500630074006f0072007900200053006c00690064006500720000000000ffffffff0000000000000000fb00000044004d006f00740069006f006e0050006c0061006e006e0069006e00670020002d0020005400720061006a006500630074006f0072007900200053006c00690064006500720000000000ffffffff0000003f00fffffffb0000001c004d006f00740069006f006e0050006c0061006e006e0069006e0067010000020a0000018a0000016900ffffff0000000100000100000002b4fc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a00560069006500770073000000003b000002b4000000a000fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000007450000003efc0100000002fb0000000800540069006d00650100000000000007450000025300fffffffb0000000800540069006d006501000000000000045000000000000000000000056b0000035900000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd0000000400000000000001d400000359fc020000000ffb0000001200530065006c0065006300740069006f006e00000001e10000009b0000005c00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c006100790073010000003b0000013c000000c700fffffffb0000000a0049006d0061006700650000000125000000e70000001600fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb0000000a0049006d00610067006501000001de000001110000000000000000fb0000000a0049006d00610067006501000001850000016a0000000000000000fb0000000c00430061006d006500720061010000023e000000b10000000000000000fb000000280020002d0020005400720061006a006500630074006f0072007900200053006c00690064006500720000000000ffffffff0000000000000000fb00000044004d006f00740069006f006e0050006c0061006e006e0069006e00670020002d0020005400720061006a006500630074006f0072007900200053006c00690064006500720000000000ffffffff0000003f00fffffffb0000001c004d006f00740069006f006e0050006c0061006e006e0069006e0067010000017d000002170000016900ffffff0000000100000100000002b4fc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a00560069006500770073000000003b000002b4000000a000fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000007450000003efc0100000002fb0000000800540069006d00650100000000000007450000025300fffffffb0000000800540069006d006501000000000000045000000000000000000000056b0000035900000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Selection:
     collapsed: false
   Time:
