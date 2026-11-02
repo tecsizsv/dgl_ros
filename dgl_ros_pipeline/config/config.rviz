@@ -5,6 +5,8 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /RobotModel1/Description Topic1
+        - /MotionPlanning1
+        - /MotionPlanning1/Planned Path1
       Splitter Ratio: 0.4676470458507538
     Tree Height: 257
   - Class: rviz_common/Selection
@@ -236,7 +238,7 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /robot_description
-      Enabled: true
+      Enabled: false
       Links:
         All Links Enabled: true
         Expand Joint Details: false
@@ -369,7 +371,7 @@ Visualization Manager:
       Name: RobotModel
       TF Prefix: ""
       Update Interval: 0
-      Value: true
+      Value: false
       Visual Enabled: true
     - Acceleration_Scaling_Factor: 0.1
       Class: moveit_rviz_plugin/MotionPlanning
@@ -528,7 +530,7 @@ Visualization Manager:
         Show Robot Collision: false
         Show Robot Visual: true
         Show Trail: false
-        State Display Time: 0.05s
+        State Display Time: 1x
         Trail Step Size: 1
         Trajectory Topic: /display_planned_path
         Use Sim Time: false
@@ -782,7 +784,7 @@ Visualization Manager:
 Window Geometry:
   Displays:
     collapsed: false
-  Height: 1011
+  Height: 1016
   Hide Left Dock: false
   Hide Right Dock: true
   Image:
@@ -800,6 +802,6 @@ Window Geometry:
     collapsed: false
   Views:
     collapsed: true
-  Width: 1861
-  X: 59
-  Y: 32
+  Width: 1848
+  X: 72
+  Y: 27
