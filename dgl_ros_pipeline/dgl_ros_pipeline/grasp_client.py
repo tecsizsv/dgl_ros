@@ -1,5 +1,7 @@
 # Added some notes based on the ROS tutorials (https://docs.ros.org/en/kilted/Tutorials/)
+import json
 import time
+from venv import logger
 import rclpy
 import numpy as np
 from rclpy.action import ActionClient
@@ -66,6 +68,7 @@ class GraspClient(Node):
         # Flags:
         self.busy = False # an action is running or not
         self.camera_read = False # successful camera parameter update
+        self.mock_execution_started = False # execution instance started or not
 
         # Frames:
         self.declare_parameter('world_frame', 'world')
@@ -77,6 +80,20 @@ class GraspClient(Node):
         self.declare_parameter('rg2_hand_shift', 0.144) 
         self.rg2_hand_shift = self.get_parameter('rg2_hand_shift').value
 
+        self.declare_parameter("moveit_config_json", "")
+        config_json = self.get_parameter("moveit_config_json").value
+
+        if not config_json:
+            raise RuntimeError("Missing MoveItPy configuration.")
+
+        self.moveit = MoveItPy(
+            node_name="grasp_planner",
+            config_dict=json.loads(config_json)
+        )
+
+        self.ur_onrobot = self.moveit.get_planning_component("ur_onrobot_manipulator")
+        self.get_logger().info("MoveItPy instance created")
+    
     #end of __init__
 
     #Method waits for the action server to be available, then sends a goal to the server. It returns a future that we can later wait on.
@@ -112,20 +129,20 @@ class GraspClient(Node):
 
     #Method is called when the action server sends the result of the goal.
     def get_result_callback(self, future):
-        result = future.result().result
+        try:
+            result = future.result().result
 
-        self.get_logger().info(message_to_yaml(result))
+            self.get_logger().info(message_to_yaml(result))
 
-        if not result.grasp_candidates:
-            self.get_logger().info('No grasp candidates found.')
-            self.busy = False
-            return
+            if not result.grasp_candidates:
+                self.get_logger().info('No grasp candidates found.')
+                return
 
-        self.publish_grasp_markers(result.grasp_candidates)
+            self.publish_grasp_markers(result.grasp_candidates)
 
-        self.move_to_grasppose(result.grasp_candidates[0]) # Move to the first grasp candidate
-
-        self.busy = False
+            self.move_to_grasppose(result.grasp_candidates[0]) # Move to the first grasp candidate
+        finally:
+            self.busy = False       
     #end of get_result_callback
 
     #This method is called when the action server sends feedback about the goal.
@@ -196,7 +213,7 @@ class GraspClient(Node):
     #end of publish_grasp_markers
         
     def detection_callback(self, msg):
-        if self.busy:
+        if self.busy or self.mock_execution_started:
             return
 
         # Check if there is a message
@@ -379,7 +396,7 @@ class GraspClient(Node):
 
         # Getting the target pose matrix by multiplying the grasp pose matrix with the transformation matrix
         target_pose_mtx = grasp_pose_mtx @ T_grasp_to_target
-        p = target_pose_mtx[:3, 3]
+        p = target_pose_mtx[:3, 3]  # x, y, z
         q = Rotation.from_matrix(target_pose_mtx[:3, :3]).as_quat()  # x, y, z, w
 
         # Converting the target pose matrix back to a Pose message
@@ -389,8 +406,28 @@ class GraspClient(Node):
         target_pose.pose.position = Point(x=float(p[0]), y=float(p[1]), z=float(p[2]))
         target_pose.pose.orientation = Quaternion(x=float(q[0]), y=float(q[1]), z=float(q[2]), w=float(q[3]))
 
+        test_pose = PoseStamped()
+        test_pose.header.frame_id = "world"
+        test_pose.header.stamp = grasp_candidate.header.stamp
+        test_pose.pose.position = Point(x=0.439, y=0.309, z=0.931)
+        test_pose.pose.orientation = Quaternion(x=0.500, y=0.500, z=0.500, w=-0.500)
+
         # Publish the target pose for visualization
         self._target_pose_pub.publish(target_pose)
+
+        self.ur_onrobot.set_start_state_to_current_state()
+        self.ur_onrobot.set_goal_state(pose_stamped_msg=target_pose, pose_link="onrobot_base_link")
+
+        plan_result = self.ur_onrobot.plan()
+
+        if plan_result:
+            self.mock_execution_started = True
+            self.get_logger().info("Grasp pose planning succeeded.")
+            status = self.moveit.execute(plan_result.trajectory, controllers=["scaled_joint_trajectory_controller"])
+            self.get_logger().info(f"Mock execution status: {status}")
+        else:
+            self.get_logger().warning("Grasp pose planning failed.")
+
     #end of move_to_grasppose
 
 def main(args=None):
