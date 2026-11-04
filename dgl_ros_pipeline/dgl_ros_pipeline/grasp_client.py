@@ -91,7 +91,9 @@ class GraspClient(Node):
             config_dict=json.loads(config_json)
         )
 
-        self.ur_onrobot = self.moveit.get_planning_component("ur_onrobot_manipulator")
+        self.robot_arm = self.moveit.get_planning_component("ur_onrobot_manipulator")
+        self.robot_gripper = self.moveit.get_planning_component("ur_onrobot_gripper")
+        
         self.get_logger().info("MoveItPy instance created")
     
     #end of __init__
@@ -161,7 +163,7 @@ class GraspClient(Node):
         marker.id = marker_id
         # set shape: ARROW, CUBE, SPHERE, CYLINDER, LINE_STRIP, LINE_LIST, CUBE_LIST, SPHERE_LIST, POINTS, TEXT_VIEW_FACING, MESH_RESOURCE, TRIANGLE_LIST
         marker.type = Marker.MESH_RESOURCE
-        marker.mesh_resource = "package://dgl_ros_pipeline/meshes/rg2_tool.stl"
+        marker.mesh_resource = "package://dgl_ros_pipeline/meshes/rg2_rotY90.stl"
         marker.mesh_use_embedded_materials = False
         marker.action = Marker.ADD
 
@@ -412,23 +414,52 @@ class GraspClient(Node):
         test_pose.pose.position = Point(x=0.439, y=0.309, z=0.931)
         test_pose.pose.orientation = Quaternion(x=0.500, y=0.500, z=0.500, w=-0.500)
 
+        posetry = PoseStamped()
+        posetry.header.frame_id = "world"
+        posetry.header.stamp = grasp_candidate.header.stamp
+        posetry.pose = grasp_candidate.pose
+
+        posetry2 = PoseStamped()
+        posetry2.header.frame_id = grasp_candidate.header.frame_id
+        posetry2.header.stamp = grasp_candidate.header.stamp
+        posetry2.pose = grasp_candidate.pose
+
         # Publish the target pose for visualization
-        self._target_pose_pub.publish(target_pose)
+        self._target_pose_pub.publish(grasp_candidate)
 
-        self.ur_onrobot.set_start_state_to_current_state()
-        self.ur_onrobot.set_goal_state(pose_stamped_msg=target_pose, pose_link="onrobot_base_link")
+        self.robot_arm.set_start_state_to_current_state()
+        self.robot_arm.set_goal_state(pose_stamped_msg=grasp_candidate, pose_link="gripper_tcp")
 
-        plan_result = self.ur_onrobot.plan()
-
+        plan_result = self.robot_arm.plan()
         if plan_result:
+            self.move_gripper("open") # Open the gripper before moving to the grasp pose
             self.mock_execution_started = True
             self.get_logger().info("Grasp pose planning succeeded.")
             status = self.moveit.execute(plan_result.trajectory, controllers=["scaled_joint_trajectory_controller"])
+            self.move_gripper("closed") # Close the gripper after moving to the grasp pose
             self.get_logger().info(f"Mock execution status: {status}")
+            return status
         else:
             self.get_logger().warning("Grasp pose planning failed.")
+            return None
 
     #end of move_to_grasppose
+
+    def move_gripper(self, state):
+        self.robot_gripper.set_start_state_to_current_state()
+        self.robot_gripper.set_goal_state(configuration_name=state)
+
+        plan_result = self.robot_gripper.plan()
+
+        if plan_result:
+            self.get_logger().info("Gripper planning succeeded.")
+            status = self.moveit.execute(plan_result.trajectory, controllers=["finger_width_trajectory_controller"])
+            self.get_logger().info(f"Gripper execution status: {status}")
+            return status
+        else:
+            self.get_logger().warning("Gripper planning failed.")
+            return None
+    #end of move_gripper
 
 def main(args=None):
     try:
