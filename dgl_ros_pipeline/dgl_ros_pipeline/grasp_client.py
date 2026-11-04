@@ -163,6 +163,7 @@ class GraspClient(Node):
         marker.id = marker_id
         # set shape: ARROW, CUBE, SPHERE, CYLINDER, LINE_STRIP, LINE_LIST, CUBE_LIST, SPHERE_LIST, POINTS, TEXT_VIEW_FACING, MESH_RESOURCE, TRIANGLE_LIST
         marker.type = Marker.MESH_RESOURCE
+        # With rotated gpd grasps use rg2_rotY90.stl mesh, with unrotated grasps use rg2.stl mesh
         marker.mesh_resource = "package://dgl_ros_pipeline/meshes/rg2_rotY90.stl"
         marker.mesh_use_embedded_materials = False
         marker.action = Marker.ADD
