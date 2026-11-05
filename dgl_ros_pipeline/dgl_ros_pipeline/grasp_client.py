@@ -68,7 +68,7 @@ class GraspClient(Node):
         # Flags:
         self.busy = False # an action is running or not
         self.camera_read = False # successful camera parameter update
-        self.mock_execution_started = False # execution instance started or not
+        self.moveit_execution_started = False # execution instance started or not
 
         # Frames:
         self.declare_parameter('world_frame', 'world')
@@ -95,6 +95,11 @@ class GraspClient(Node):
         self.robot_gripper = self.moveit.get_planning_component("ur_onrobot_gripper")
         
         self.get_logger().info("MoveItPy instance created")
+
+
+        # Numbers to measure the success rate of grasping attempts
+        self.fail = 0
+        self.successes = 0
     
     #end of __init__
 
@@ -216,7 +221,7 @@ class GraspClient(Node):
     #end of publish_grasp_markers
         
     def detection_callback(self, msg):
-        if self.busy or self.mock_execution_started:
+        if self.busy or self.moveit_execution_started:
             return
 
         # Check if there is a message
@@ -387,27 +392,27 @@ class GraspClient(Node):
     #end of camera_info_callback
 
     def move_to_grasppose(self,grasp_candidate):
-        # Getting the transformation matrix from the grasp frame to the target frame (the point where the gripper's palm will be)
-        T_grasp_to_target = np.eye(4)
-        T_grasp_to_target[:3, :3] = Rotation.from_euler('y', 90, degrees=True).as_matrix()
-        T_grasp_to_target[:3, 3] = [-self.rg2_hand_shift, 0, 0] # Shift along the x-axis (because x in the grasp's frame will be the z of the gripper frame) by rg2_hand_shift
+        # # Getting the transformation matrix from the grasp frame to the target frame (the point where the gripper's palm will be)
+        # T_grasp_to_target = np.eye(4)
+        # T_grasp_to_target[:3, :3] = Rotation.from_euler('y', 90, degrees=True).as_matrix()
+        # T_grasp_to_target[:3, 3] = [-self.rg2_hand_shift, 0, 0] # Shift along the x-axis (because x in the grasp's frame will be the z of the gripper frame) by rg2_hand_shift
 
-        # Converting the grasp candidate's pose to a matrix
-        grasp_pose_mtx = np.eye(4)
-        grasp_pose_mtx[:3, :3] = Rotation.from_quat([grasp_candidate.pose.orientation.x, grasp_candidate.pose.orientation.y, grasp_candidate.pose.orientation.z, grasp_candidate.pose.orientation.w]).as_matrix()
-        grasp_pose_mtx[:3, 3] = [grasp_candidate.pose.position.x, grasp_candidate.pose.position.y, grasp_candidate.pose.position.z]
+        # # Converting the grasp candidate's pose to a matrix
+        # grasp_pose_mtx = np.eye(4)
+        # grasp_pose_mtx[:3, :3] = Rotation.from_quat([grasp_candidate.pose.orientation.x, grasp_candidate.pose.orientation.y, grasp_candidate.pose.orientation.z, grasp_candidate.pose.orientation.w]).as_matrix()
+        # grasp_pose_mtx[:3, 3] = [grasp_candidate.pose.position.x, grasp_candidate.pose.position.y, grasp_candidate.pose.position.z]
 
-        # Getting the target pose matrix by multiplying the grasp pose matrix with the transformation matrix
-        target_pose_mtx = grasp_pose_mtx @ T_grasp_to_target
-        p = target_pose_mtx[:3, 3]  # x, y, z
-        q = Rotation.from_matrix(target_pose_mtx[:3, :3]).as_quat()  # x, y, z, w
+        # # Getting the target pose matrix by multiplying the grasp pose matrix with the transformation matrix
+        # target_pose_mtx = grasp_pose_mtx @ T_grasp_to_target
+        # p = target_pose_mtx[:3, 3]  # x, y, z
+        # q = Rotation.from_matrix(target_pose_mtx[:3, :3]).as_quat()  # x, y, z, w
 
-        # Converting the target pose matrix back to a Pose message
-        target_pose = PoseStamped()
-        target_pose.header.frame_id = grasp_candidate.header.frame_id  # Set the frame ID for the target pose  
-        target_pose.header.stamp = grasp_candidate.header.stamp  # Set the timestamp for the target pose
-        target_pose.pose.position = Point(x=float(p[0]), y=float(p[1]), z=float(p[2]))
-        target_pose.pose.orientation = Quaternion(x=float(q[0]), y=float(q[1]), z=float(q[2]), w=float(q[3]))
+        # # Converting the target pose matrix back to a Pose message
+        # target_pose = PoseStamped()
+        # target_pose.header.frame_id = grasp_candidate.header.frame_id  # Set the frame ID for the target pose  
+        # target_pose.header.stamp = grasp_candidate.header.stamp  # Set the timestamp for the target pose
+        # target_pose.pose.position = Point(x=float(p[0]), y=float(p[1]), z=float(p[2]))
+        # target_pose.pose.orientation = Quaternion(x=float(q[0]), y=float(q[1]), z=float(q[2]), w=float(q[3]))
 
         test_pose = PoseStamped()
         test_pose.header.frame_id = "world"
@@ -415,52 +420,64 @@ class GraspClient(Node):
         test_pose.pose.position = Point(x=0.439, y=0.309, z=0.931)
         test_pose.pose.orientation = Quaternion(x=0.500, y=0.500, z=0.500, w=-0.500)
 
-        posetry = PoseStamped()
-        posetry.header.frame_id = "world"
-        posetry.header.stamp = grasp_candidate.header.stamp
-        posetry.pose = grasp_candidate.pose
-
-        posetry2 = PoseStamped()
-        posetry2.header.frame_id = grasp_candidate.header.frame_id
-        posetry2.header.stamp = grasp_candidate.header.stamp
-        posetry2.pose = grasp_candidate.pose
-
         # Publish the target pose for visualization
         self._target_pose_pub.publish(grasp_candidate)
 
-        self.robot_arm.set_start_state_to_current_state()
-        self.robot_arm.set_goal_state(pose_stamped_msg=grasp_candidate, pose_link="gripper_tcp")
 
-        plan_result = self.robot_arm.plan()
-        if plan_result:
-            self.move_gripper("open") # Open the gripper before moving to the grasp pose
-            self.mock_execution_started = True
-            self.get_logger().info("Grasp pose planning succeeded.")
-            status = self.moveit.execute(plan_result.trajectory, controllers=["scaled_joint_trajectory_controller"])
-            self.move_gripper("closed") # Close the gripper after moving to the grasp pose
-            self.get_logger().info(f"Mock execution status: {status}")
-            return status
-        else:
-            self.get_logger().warning("Grasp pose planning failed.")
-            return None
+        gripper_status = self._move_gripper("open") # Open the gripper before moving to the grasp pose
 
+        if not gripper_status:
+            self.get_logger().warning("Opening gripper failed.")
+            return False
+
+        arm_status = self._move_arm(grasp_candidate, "gripper_tcp") # Move the arm to the target pose
+
+        if not arm_status:
+            self.get_logger().warning("Moving arm to grasp pose failed.")
+            return False
+
+        self.moveit_execution_started = True  # Set the flag to indicate that MoveIt execution has started
+        
+        gripper_status = self._move_gripper("closed")
+
+        if not gripper_status:
+            self.get_logger().warning("Closing gripper failed.")
+            return False
+        
+        return True
     #end of move_to_grasppose
 
-    def move_gripper(self, state):
+    def _move_arm(self, pose, pose_link):
+        self.robot_arm.set_start_state_to_current_state()
+        self.robot_arm.set_goal_state(pose_stamped_msg=pose, pose_link=pose_link)
+
+        plan_result = self.robot_arm.plan()
+
+        if plan_result:
+            self.get_logger().info("Planning succeeded. Executing plan on arm...")
+            status = self.moveit.execute(plan_result.trajectory, controllers=["scaled_joint_trajectory_controller"])
+            self.get_logger().info(f"Arm execution status: {status.status}")
+            return status
+        else:
+            self.get_logger().warning("Arm planning failed.")
+            return None
+    #end of _move_arm
+
+    def _move_gripper(self, state):
         self.robot_gripper.set_start_state_to_current_state()
         self.robot_gripper.set_goal_state(configuration_name=state)
 
         plan_result = self.robot_gripper.plan()
 
         if plan_result:
-            self.get_logger().info("Gripper planning succeeded.")
+            self.get_logger().info(f"Planning succeeded. Executing plan on gripper...")
             status = self.moveit.execute(plan_result.trajectory, controllers=["finger_width_trajectory_controller"])
-            self.get_logger().info(f"Gripper execution status: {status}")
+            self.get_logger().info(f"Gripper execution status: {status.status}")
             return status
         else:
             self.get_logger().warning("Gripper planning failed.")
             return None
-    #end of move_gripper
+    #end of _move_gripper
 
 def main(args=None):
     try:
