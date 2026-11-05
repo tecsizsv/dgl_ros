@@ -110,7 +110,7 @@ class GraspClient(Node):
 
         self.get_logger().debug('Waiting for action server...')
         self._action_client.wait_for_server()
-        
+
         # ◯★•✦.․✦•★◯
         self.get_logger().info(f'<<<<<<<<<<< BEGIN <<<<<<<<<<<<<<<\n ◯★•✦.․✦•★◯ Sending goal request. ◯★•✦.․✦•★◯\n workspace = {workspace}')
 
@@ -422,20 +422,30 @@ class GraspClient(Node):
         self._target_pose_pub.publish(grasp_candidate)
 
 
+        self.get_logger().info("1. Opening gripper before moving the arm.")
         gripper_status = self._move_gripper("open") # Open the gripper before moving to the grasp pose
 
         if not gripper_status:
             self.get_logger().warning("✖ ✖ ✖ Opening gripper failed. ✖ ✖ ✖\n<<<<<<<<<<<< END <<<<<<<<<<<<<<<<")
             return False
-
-        arm_status = self._move_arm(grasp_candidate, "gripper_tcp") # Move the arm to the target pose
+        
+        self.get_logger().info("2. Moving arm close to the grasp pose.")
+        arm_status = self._move_arm(grasp_candidate, "gripper_tcp") # Move the end of the tcp to the target pose
 
         if not arm_status:
             self.get_logger().warning("✖ ✖ ✖ Moving arm to grasp pose failed. ✖ ✖ ✖\n<<<<<<<<<<<< END <<<<<<<<<<<<<<<<")
             return False
 
+        self.get_logger().info("3. Moving gripper to the grasp pose.")
+        grasping_status = self._move_arm(grasp_candidate, "grasping_frame") # Move the hand of the robot to the grasping pose
+
+        if not grasping_status:
+            self.get_logger().warning("✖ ✖ ✖ Moving gripper to grasp pose failed. ✖ ✖ ✖\n<<<<<<<<<<<< END <<<<<<<<<<<<<<<<")
+            return False
+
         self.moveit_execution_started = True  # Set the flag to indicate that MoveIt execution has started
-        
+
+        self.get_logger().info("4. Closing gripper around object.")
         gripper_status = self._move_gripper("closed")
 
         if not gripper_status:

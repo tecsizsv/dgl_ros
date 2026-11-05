@@ -12,7 +12,7 @@ from launch.actions import (
     IncludeLaunchDescription,)
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
-from launch.event_handlers import  OnProcessStart
+from launch.event_handlers import  OnProcessStart, OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from moveit_configs_utils import MoveItConfigsBuilder
 
@@ -187,13 +187,16 @@ def generate_launch_description():
         ]
     )
 
+    wait_for_camera = ExecuteProcess(
+        cmd=["ros2", "topic", "echo", "--once", "--no-arr",
+            "/camera/camera/depth/color/points"],
+        output="log",
+    )
+
     start_gpd_after_bag = RegisterEventHandler(
-        event_handler=OnProcessStart(
-            target_action=bag_play,
-            on_start=[
-                LogInfo(msg="Bag file started playing..."),
-                TimerAction(period=15.0, actions=[gpd_node]),
-            ],
+        event_handler=OnProcessExit(
+            target_action=wait_for_camera,
+            on_exit=[gpd_node],
         )
     )
 
@@ -201,6 +204,7 @@ def generate_launch_description():
         rosbag_name_arg,
         log_level_arg,
         bag_play,
+        wait_for_camera,
         static_tf,
         moveit,
         rviz2,
