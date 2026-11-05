@@ -47,6 +47,8 @@ def generate_launch_description():
         controllers = yaml.safe_load(f)
 
     rosbag_name_arg = DeclareLaunchArgument('rosbag_name', default_value='cam_aligned_mug2', description='Name of the rosbag to play')
+    log_level_arg = DeclareLaunchArgument('log_level', default_value='info')
+    
     bag_play = ExecuteProcess(
         cmd=[
             "ros2", "bag", "play",
@@ -90,15 +92,17 @@ def generate_launch_description():
         name="rviz2",
         arguments=["-d", os.path.join(dgl_share, "config", "config.rviz")],
         parameters=[{"robot_description_kinematics": kinematics}],
-        output="screen",
+        ros_arguments=['--log-level', 'warn'],
+        output="log",
     )
 
     object_detection = Node(
         package="dgl_ros_pipeline",
         executable="object_detector",
         name="object_detector",
-        output="screen",
+        output="both",
         parameters=[pipeline_params],
+        ros_arguments=['--log-level', LaunchConfiguration('log_level')],
     )
 
     gpd_node = Node(
@@ -110,13 +114,11 @@ def generate_launch_description():
                 "world_frame": "world",
                 "src_frame0": "camera_depth_optical_frame",
         }],
-        output="screen",
+        output="log",
     )
 
     moveit_config = (
-        MoveItConfigsBuilder(
-            robot_name="ur_onrobot", package_name="ur_onrobot_moveit_config"
-        )
+        MoveItConfigsBuilder(robot_name="ur_onrobot", package_name="ur_onrobot_moveit_config")
         .robot_description(
             file_path=os.path.join(onrobot_description_share, "urdf", "ur_onrobot.urdf.xacro"),
             mappings={
@@ -167,18 +169,22 @@ def generate_launch_description():
     moveit_params["moveit_simple_controller_manager"] = controllers
     moveit_params["moveit_manage_controllers"] = False
 
-    print(yaml.safe_dump(moveit_params["ompl"], sort_keys=False))
+    #print(yaml.safe_dump(moveit_params["ompl"], sort_keys=False))
 
     grasp_client = Node(
         package="dgl_ros_pipeline",
         executable="grasp_client",
         name="grasp_client",
-        output="screen",
+        output="both",
         parameters=[
             pipeline_params,
             {"moveit_config_json": json.dumps(moveit_params)},
             {"use_sim_time": False},
         ],
+        ros_arguments=[
+            '--log-level', 'warn',
+            '--log-level', ['grasp_client:=', LaunchConfiguration('log_level')]
+        ]
     )
 
     start_gpd_after_bag = RegisterEventHandler(
@@ -193,6 +199,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         rosbag_name_arg,
+        log_level_arg,
         bag_play,
         static_tf,
         moveit,

@@ -39,13 +39,14 @@ class ObjectDetector(Node):
         self.declare_parameter('device', "cuda:0")
         self.device = self.get_parameter('device').value
 
-        # Flag to enable/disable cropping:
-        self.declare_parameter('cropping', False)
-        self.cropping = self.get_parameter('cropping').value
-
         # Size of the crop:
         self.declare_parameter('crop', [440, 20, 1090, 720])
         self.crop_x1, self.crop_y1, self.crop_x2, self.crop_y2 = self.get_parameter('crop').value
+
+        # Flag to enable/disable cropping:
+        self.declare_parameter('cropping', False)
+        self.cropping = self.get_parameter('cropping').value
+        self.get_logger().info(f'Using cropped image: {self.cropping}')
     
         # Subscribers:
         self._img_sub =self.create_subscription(Image, "/camera/camera/color/image_raw", self.image_callback, qos_profile_sensor_data)
@@ -61,6 +62,7 @@ class ObjectDetector(Node):
         # Should use yolo
         self.declare_parameter('use_yolo', False)
         self.use_yolo = self.get_parameter('use_yolo').value
+        self.get_logger().info(f'Using YOLO: {self.use_yolo}')
     
     #end of __init__
 
@@ -72,7 +74,6 @@ class ObjectDetector(Node):
             if self.cropping:
                 #image[y1:y2, x1:x2]
                 yolo_input = image[self.crop_y1:self.crop_y2, self.crop_x1:self.crop_x2]
-                self.get_logger().debug("Cropping enabled: Using cropped image for YOLO detection.")
             else:
                 yolo_input = image
 

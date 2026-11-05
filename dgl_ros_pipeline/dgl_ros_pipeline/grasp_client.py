@@ -1,7 +1,6 @@
 # Added some notes based on the ROS tutorials (https://docs.ros.org/en/kilted/Tutorials/)
 import json
 import time
-from venv import logger
 import rclpy
 import numpy as np
 from rclpy.action import ActionClient
@@ -109,10 +108,11 @@ class GraspClient(Node):
         goal_msg.action_name =  'sample_grasp_poses'
         goal_msg.workspace = workspace
 
-        self.get_logger().info('Waiting for action server...')
+        self.get_logger().debug('Waiting for action server...')
         self._action_client.wait_for_server()
-
-        self.get_logger().info('Sending goal request...')
+        
+        # ◯★•✦.․✦•★◯
+        self.get_logger().info(f'<<<<<<<<<<< BEGIN <<<<<<<<<<<<<<<\n ◯★•✦.․✦•★◯ Sending goal request. ◯★•✦.․✦•★◯\n workspace = {workspace}')
 
         # Async callback      
         self._send_goal_future = self._action_client.send_goal_async(goal_msg, feedback_callback=self.feedback_callback)
@@ -124,7 +124,7 @@ class GraspClient(Node):
     def goal_response_callback(self, future):
         goal_handle = future.result()
         if not goal_handle.accepted:
-            self.get_logger().info('Goal rejected :(')
+            self.get_logger().warning('Goal rejected :(')
             self.busy = False
             return
 
@@ -139,10 +139,10 @@ class GraspClient(Node):
         try:
             result = future.result().result
 
-            self.get_logger().info(message_to_yaml(result))
+            self.get_logger().debug(message_to_yaml(result))
 
             if not result.grasp_candidates:
-                self.get_logger().info('No grasp candidates found.')
+                self.get_logger().warning('No grasp candidates found.')
                 return
 
             self.publish_grasp_markers(result.grasp_candidates)
@@ -156,7 +156,7 @@ class GraspClient(Node):
     def feedback_callback(self, feedback_msg):
         feedback = feedback_msg.feedback
 
-        self.get_logger().info(message_to_yaml(feedback))
+        self.get_logger().debug(message_to_yaml(feedback))
     #end of feedback_callback
 
     #This method creates a marker for a grasp, it's a tool used only inside this class
@@ -217,7 +217,6 @@ class GraspClient(Node):
             marker_array.markers.append(marker)
 
         self._marker_pub.publish(marker_array)  
-
     #end of publish_grasp_markers
         
     def detection_callback(self, msg):
@@ -236,7 +235,6 @@ class GraspClient(Node):
             return
 
         self.busy = True
-        self.get_logger().info(f'workspace = {workspace}')
         self.send_goal(workspace)
     #end of detection_callback
 
@@ -264,7 +262,7 @@ class GraspClient(Node):
             T = self._get_tf(self.world_frame, self.camera_frame)
         
             if T is None:
-                self.get_logger().warn('Transformation matrix T is empty.')
+                self.get_logger().debug('Transformation matrix T is empty.')
                 return None
 
             # points_w = []
@@ -279,7 +277,7 @@ class GraspClient(Node):
             z_dir = T[2, :3] @ norm_coords # T[2, :3] is the 3rd row of R: r31   r32   r33 
 
             if np.any(z_dir >= 0):
-                self.get_logger().warn('Ray direction is not towards the table.')
+                self.get_logger().warning('Ray direction is not towards the table.')
                 return None
 
             # Z_c expressed from the equation of z_w: Z_c = (z_w - t_z) / z_dir
@@ -363,7 +361,7 @@ class GraspClient(Node):
             return T
 
         except TransformException as ex:
-            self.get_logger().warn(f'Could not transform {frame_from} to {frame_to}: {ex}')
+            self.get_logger().warning(f'Could not transform {frame_from} to {frame_to}: {ex}',throttle_duration_sec=2.0)
             return None
     #end of _get_tf
 
@@ -372,7 +370,7 @@ class GraspClient(Node):
             return
 
         if msg.k[0] <= 0.0 or msg.k[4] <= 0.0:
-            self.get_logger().warn('Invalid camera info message received, waiting for next one...',throttle_duration_sec=2.0)
+            self.get_logger().warning('Invalid camera info message received, waiting for next one...',throttle_duration_sec=2.0)
             return
         
         # Update camera parameters from the CameraInfo message
@@ -427,13 +425,13 @@ class GraspClient(Node):
         gripper_status = self._move_gripper("open") # Open the gripper before moving to the grasp pose
 
         if not gripper_status:
-            self.get_logger().warning("Opening gripper failed.")
+            self.get_logger().warning("✖ ✖ ✖ Opening gripper failed. ✖ ✖ ✖\n<<<<<<<<<<<< END <<<<<<<<<<<<<<<<")
             return False
 
         arm_status = self._move_arm(grasp_candidate, "gripper_tcp") # Move the arm to the target pose
 
         if not arm_status:
-            self.get_logger().warning("Moving arm to grasp pose failed.")
+            self.get_logger().warning("✖ ✖ ✖ Moving arm to grasp pose failed. ✖ ✖ ✖\n<<<<<<<<<<<< END <<<<<<<<<<<<<<<<")
             return False
 
         self.moveit_execution_started = True  # Set the flag to indicate that MoveIt execution has started
@@ -441,9 +439,10 @@ class GraspClient(Node):
         gripper_status = self._move_gripper("closed")
 
         if not gripper_status:
-            self.get_logger().warning("Closing gripper failed.")
+            self.get_logger().warning("✖ ✖ ✖ Closing gripper failed. ✖ ✖ ✖\n<<<<<<<<<<<< END <<<<<<<<<<<<<<<<")
             return False
         
+        self.get_logger().info("◯ ◯ ◯ Grasping sequence completed successfully. ◯ ◯ ◯\n<<<<<<<<<<<< END <<<<<<<<<<<<<<<<")
         return True
     #end of move_to_grasppose
 
@@ -456,7 +455,10 @@ class GraspClient(Node):
         if plan_result:
             self.get_logger().info("Planning succeeded. Executing plan on arm...")
             status = self.moveit.execute(plan_result.trajectory, controllers=["scaled_joint_trajectory_controller"])
-            self.get_logger().info(f"Arm execution status: {status.status}")
+            if status:
+                self.get_logger().info(f"Arm execution status: {status.status}")
+            else:
+                self.get_logger().warning(f"Arm execution status: {status.status}")
             return status
         else:
             self.get_logger().warning("Arm planning failed.")
@@ -472,7 +474,10 @@ class GraspClient(Node):
         if plan_result:
             self.get_logger().info(f"Planning succeeded. Executing plan on gripper...")
             status = self.moveit.execute(plan_result.trajectory, controllers=["finger_width_trajectory_controller"])
-            self.get_logger().info(f"Gripper execution status: {status.status}")
+            if status:
+                self.get_logger().info(f"Gripper execution status: {status.status}")
+            else:
+                self.get_logger().warning(f"Gripper execution status: {status.status}")
             return status
         else:
             self.get_logger().warning("Gripper planning failed.")
