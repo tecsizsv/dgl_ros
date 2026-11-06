@@ -1,6 +1,7 @@
 # Added some notes based on the ROS tutorials (https://docs.ros.org/en/kilted/Tutorials/)
 import json
 import time
+from turtle import color
 import rclpy
 import numpy as np
 from rclpy.action import ActionClient
@@ -15,6 +16,8 @@ from tf2_ros import Buffer, TransformListener, TransformException
 from scipy.spatial.transform import Rotation
 from moveit.planning import MoveItPy
 from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion
+from moveit_msgs.msg import CollisionObject
+from shape_msgs.msg import SolidPrimitive
 
 class GraspClient(Node):
 
@@ -29,19 +32,24 @@ class GraspClient(Node):
         #   3. The action name: 'sample_grasp_poses'
         self._action_client = ActionClient(self, SampleGraspPoses, 'sample_grasp_poses')
 
-        # Creating a publisher for visualization markers.
+        # PUBLISHERS
+        # visualization markers
         self._marker_pub = self.create_publisher(MarkerArray, 'grasp_markers', 10)
 
-        # Creating a publisher for target pose for the robot to move to
+        # target pose for the robot to move to
         self._target_pose_pub = self.create_publisher(PoseStamped, 'target_pose', 10)
 
-        # Subscriber to YOLO detection messages (Detection2DArray)
+        # collision object
+        self._collision_obj_pub= self.create_publisher(CollisionObject, '/collision_object', 10)
+
+        # SUBSCRIBERS
+        # YOLO detection messages (Detection2DArray)
         self._det_sub = self.create_subscription(Detection2DArray, 'detections', self.detection_callback, 10)
 
-        # Subscriber to camera info messages (CameraInfo)
+        # camera info messages (CameraInfo)
         self._cam_info_sub = self.create_subscription(CameraInfo, '/camera/camera/color/camera_info', self.camera_info_callback, 10)
 
-        # Subscribe to camera_color-optical_frame to world transform (tf)
+        # camera_color-optical_frame to world transform (tf)
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
@@ -79,6 +87,12 @@ class GraspClient(Node):
         self.declare_parameter('rg2_hand_shift', 0.144) 
         self.rg2_hand_shift = self.get_parameter('rg2_hand_shift').value
 
+        self.declare_parameter('table_pos', [0.37, 0.0, -0.05])
+        self.table_pos = self.get_parameter('table_pos').value
+
+        self.declare_parameter('table_dim', [0.7, 1.0, 0.1])
+        self.table_dim = self.get_parameter('table_dim').value
+
         self.declare_parameter("moveit_config_json", "")
         config_json = self.get_parameter("moveit_config_json").value
 
@@ -95,6 +109,11 @@ class GraspClient(Node):
         
         self.get_logger().info("MoveItPy instance created")
 
+        # psm: planning_scene_monitor
+        self.psm =self.moveit.get_planning_scene_monitor()
+        self.psm.start_scene_monitor("/planning_scene")
+        self.psm.start_state_monitor("/joint_states", "/attached_collision_object")
+        self._add_collision_object()
 
         # Numbers to measure the success rate of grasping attempts
         self.fail = 0
@@ -494,6 +513,34 @@ class GraspClient(Node):
             return None
     #end of _move_gripper
 
+    def _add_collision_object(self):
+        with self.psm.read_write() as scene:
+            collision_object = CollisionObject()
+            collision_object.header.frame_id = "world"
+            collision_object.id = "table"
+
+            box_pose = Pose()
+            x, y, z = self.table_pos
+            box_pose.position = Point(x=x, y=y, z=z)
+            box_pose.orientation.x = 0.0
+            box_pose.orientation.y = 0.0
+            box_pose.orientation.z = 0.0
+            box_pose.orientation.w = 1.0
+
+            box = SolidPrimitive()
+            box.type = SolidPrimitive.BOX
+            box.dimensions = self.table_dim
+
+            collision_object.primitives.append(box)
+            collision_object.primitive_poses.append(box_pose)
+            collision_object.operation = CollisionObject.ADD
+
+            scene.apply_collision_object(collision_object)
+            scene.current_state.update()  # Important to ensure the scene is updated
+                  
+        self._collision_obj_pub.publish(collision_object)
+    #end of _add_collision_object
+    
 def main(args=None):
     try:
         with rclpy.init(args=args):
