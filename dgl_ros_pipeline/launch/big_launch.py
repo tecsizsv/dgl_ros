@@ -1,30 +1,53 @@
 import os
 import yaml
+import json
 from launch import LaunchDescription
+from launch.substitutions import LaunchConfiguration
 from launch.actions import (
+    DeclareLaunchArgument,
     IncludeLaunchDescription,
+    RegisterEventHandler,
     ExecuteProcess,
-    RegisterEventHandler,)
-from launch.launch_description_sources import PythonLaunchDescriptionSource
+    LogInfo,)
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 from launch.event_handlers import OnProcessExit
-from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
+from moveit_configs_utils import MoveItConfigsBuilder
+
 
 def generate_launch_description():
 
-    # Ez a telepített (share) mappára mutat, nem a forrásmappára
-    rviz_config_dir = get_package_share_directory('dgl_ros_pipeline')
-    gpd_config_dir = get_package_share_directory('dgl_ros_models')
-    pipeline_params= os.path.join(get_package_share_directory('dgl_ros_pipeline'), 'config', 'pipeline_params.yaml')
+    ur_type = "ur5e"
+    onrobot_type = "rg2"
+
+    # Share directories
+    dgl_share = get_package_share_directory("dgl_ros_pipeline")
+    gpd_share = get_package_share_directory("dgl_ros_models")
+    onrobot_moveit_share = get_package_share_directory("ur_onrobot_moveit_config")
+    onrobot_description_share= get_package_share_directory("ur_onrobot_description")
+    
+    # Config file paths
+    ur_model_config = os.path.join(get_package_share_directory("ur_description"), "config", ur_type)
+    pipeline_params= os.path.join(dgl_share, "config", "pipeline_params.yaml")
+    kinematics_file = os.path.join(onrobot_moveit_share, "config", "kinematics.yaml")
+    controllers_file = os.path.join(onrobot_moveit_share, "config", "controllers.yaml")
+
+    # MoveItPy settings
+    moveit_cpp_yaml = os.path.join(dgl_share, "config", "moveit_cpp.yaml")
+    
+    # Loading params
     with open(pipeline_params) as f:
         params = yaml.safe_load(f)
     cam = params['camera_base_tf']['ros__parameters']
 
-    kinematics_file = os.path.join(get_package_share_directory("ur_moveit_config"), "config", "kinematics.yaml")
     with open(kinematics_file) as f:
         kinematics = yaml.safe_load(f)
+
+    with open(controllers_file) as f:
+        controllers = yaml.safe_load(f)
+    
+    log_level_arg = DeclareLaunchArgument('log_level', default_value='info')
 
     realsense_launch = IncludeLaunchDescription( # elindítja a kamerát, ami a pointcloud topicokat publikálja
         PythonLaunchDescriptionSource(
@@ -35,8 +58,8 @@ def generate_launch_description():
             )
         ),
         launch_arguments={
-            "json_file_path": os.path.join(get_package_share_directory("dgl_ros_pipeline"), "config", "camera_config2.json",),
-            "config_file": os.path.join(get_package_share_directory("dgl_ros_pipeline"), "config", "camera_filters.yaml"),
+            "json_file_path": os.path.join(dgl_share, "config", "camera_config2.json",),
+            "config_file": os.path.join(dgl_share, "config", "camera_filters.yaml"),
         }.items(),
     )
 
@@ -57,17 +80,23 @@ def generate_launch_description():
     )
 
     moveit = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(os.path.join(get_package_share_directory("ur_moveit_config"), "launch", "ur_moveit.launch.py")),
-        launch_arguments={"ur_type": "ur5e", "launch_rviz": "false"}.items(),
+        PythonLaunchDescriptionSource(os.path.join(onrobot_moveit_share, "launch", "ur_onrobot_moveit.launch.py")),
+        launch_arguments={
+            "ur_type": ur_type,
+            "onrobot_type": onrobot_type,
+            "launch_servo": "false",
+            "launch_rviz": "false"
+        }.items(),
     )
 
     rviz2 = Node( # elindítja az rviz-t
         package="rviz2",
         executable="rviz2",
         name="rviz2",
-        arguments=["-d", os.path.join(rviz_config_dir, "config", "config.rviz")],
+        arguments=["-d", os.path.join(dgl_share, "config", "config.rviz")],
         parameters=[{"robot_description_kinematics": kinematics}],
-        output="screen",
+        ros_arguments=['--log-level', 'warn'],
+        output="log",
     )
 
     gpd_node = Node(
@@ -76,7 +105,7 @@ def generate_launch_description():
         parameters=[
             {
                 "src_topic0": "/camera/camera/depth/color/points",
-                "gpd_config_path": os.path.join(gpd_config_dir, "config", "gpd_config.yaml"),
+                "gpd_config_path": os.path.join(gpd_share, "config", "gpd_config.yaml"),
                 "world_frame": "world",
                 "src_frame0": "camera_depth_optical_frame",
             }
@@ -90,14 +119,79 @@ def generate_launch_description():
         name="object_detector",
         output="screen",
         parameters=[pipeline_params],
+        ros_arguments=['--log-level', LaunchConfiguration('log_level')],
     )
+
+    moveit_config = (
+        MoveItConfigsBuilder(robot_name="ur_onrobot", package_name="ur_onrobot_moveit_config")
+        .robot_description(
+            file_path=os.path.join(onrobot_description_share, "urdf", "ur_onrobot.urdf.xacro"),
+            mappings={
+                "robot_ip": "xxx.yyy.zzz.www",
+                "joint_limit_params": os.path.join(ur_model_config, "joint_limits.yaml"),                       
+                "kinematics_params": os.path.join(ur_model_config, "default_kinematics.yaml"),
+                "physical_params": os.path.join(ur_model_config, "physical_parameters.yaml"),
+                "visual_params": os.path.join(ur_model_config, "visual_parameters.yaml"),
+                "safety_limits": "true",
+                "safety_pos_margin": "0.15",
+                "safety_k_position": "20",
+                "name": "ur_onrobot",
+                "ur_type": ur_type,
+                "onrobot_type": onrobot_type,
+                "script_filename": "ros_control.urscript",
+                "input_recipe_filename": "rtde_input_recipe.txt",
+                "output_recipe_filename": "rtde_output_recipe.txt",
+                "prefix": ""
+            },
+        )
+        .robot_description_semantic(
+            file_path=os.path.join(onrobot_moveit_share, "srdf", "ur_onrobot.srdf.xacro"),
+            mappings={"name": "ur_onrobot", "prefix": ""},
+        )
+        .robot_description_kinematics(file_path=kinematics_file)
+        .joint_limits(file_path=os.path.join(onrobot_moveit_share, "config", "joint_limits.yaml"))
+        #.trajectory_execution(file_path=os.path.join(onrobot_moveit_share, "config", "controllers.yaml"))
+        .planning_pipelines(pipelines=["ompl"], default_planning_pipeline="ompl")
+        .moveit_cpp(file_path=os.path.join(dgl_share, "config", "moveit_cpp.yaml"))
+        #.sensors_3d(file_path=os.path.join(dgl_share, "config", "sensors_3d.yaml"))
+        .to_moveit_configs()
+    )
+
+    moveit_params = moveit_config.to_dict()
+
+    response_adapters = moveit_params["ompl"].setdefault("response_adapters", [])
+    timing_adapter = "default_planning_response_adapters/AddTimeOptimalParameterization"
+    display_adapter = "default_planning_response_adapters/DisplayMotionPath"
+
+    if display_adapter not in response_adapters:
+        response_adapters.append(display_adapter)
+
+    if timing_adapter in response_adapters:
+        response_adapters.remove(timing_adapter)
+
+    response_adapters.insert(response_adapters.index(display_adapter), timing_adapter)
+
+    moveit_params["moveit_controller_manager"] = ("moveit_simple_controller_manager/MoveItSimpleControllerManager")
+    moveit_params["moveit_simple_controller_manager"] = controllers
+    moveit_params["moveit_manage_controllers"] = False
+
+    #print(yaml.safe_dump(moveit_params["ompl"], sort_keys=False))
+
 
     grasp_client = Node( # elindítja a grasp clientet
         package="dgl_ros_pipeline",
         executable="grasp_client",
         name="grasp_client",
-        output="screen",
-        parameters=[pipeline_params],
+        output="both",
+        parameters=[
+            pipeline_params,
+            {"moveit_config_json": json.dumps(moveit_params)},
+            {"use_sim_time": False},
+        ],
+        ros_arguments=[
+            '--log-level', 'warn',
+            '--log-level', ['grasp_client:=', LaunchConfiguration('log_level')]
+        ]
     )
 
     wait_for_camera = ExecuteProcess(
@@ -105,18 +199,21 @@ def generate_launch_description():
         output="log",
     )
 
+    start_gpd_after_cam = RegisterEventHandler(
+        event_handler=OnProcessExit(
+            target_action=wait_for_camera,
+            on_exit=[gpd_node],
+        )
+     )
+
     return LaunchDescription([
-        wait_for_camera,
-        RegisterEventHandler(
-            event_handler=OnProcessExit(
-                target_action=wait_for_camera,
-                on_exit=[gpd_node],
-            )
-     ),
+        log_level_arg,
         realsense_launch,
+        wait_for_camera,
         static_tf,
         moveit,
         rviz2,
         object_detection,
+        start_gpd_after_cam,
         grasp_client,
     ])

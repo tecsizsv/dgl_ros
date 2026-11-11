@@ -25,12 +25,12 @@ grasp_client:
 
 object_detector:
   ros__parameters:
-    cropping: False
-    crop: [440, 20, 1090, 720]
+    cropping: True
+    crop: [0, 0, 450, 720] # x1, y1, x2, y2, (left -> right, top ->bottom)
     # Options: yolo26m-objv1-150.pt (Objects365), yolo26m.pt (COCO), yolov8s-world.pt (World)
     model: yolo26m-objv1-150.pt
     # Only used with a -world model
     classes: ["cardboard box", "battery", "bottle", "rod", "mug"]
     conf: 0.45 # detection confidence threshold (0..1)
     device: "cuda:0" # or "cpu"
-    use_yolo: False # if True, uses YOLO for object detection; if False, uses GPD for grasp detection
+    use_yolo: True # if True, uses YOLO for object detection; if False, uses GPD for grasp detection
