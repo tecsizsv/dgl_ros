@@ -15,9 +15,9 @@ camera_base_tf:
 
 grasp_client:
   ros__parameters:
-    z_min: -0.02 # just above the table
+    z_min: -0.03 # just above the table -0.02
     z_max: 0.2 # the highest expected object
-    margin: 0.0
+    margin: 0.05
     camera_frame: camera_color_optical_frame
     table_pos: [0.37, 0.0, -0.05] # box center in world frame [m]
     table_dim: [0.7, 1.0, 0.1] # box size x, y, z [m]
@@ -31,5 +31,7 @@ object_detector:
     # Only used with a -world model
     classes: ["cardboard box", "battery", "bottle", "rod", "mug"]
     conf: 0.45 # detection confidence threshold (0..1)
+    limits: [0.0, 0.75, 0.0, 1.0]
     device: "cuda:0" # or "cpu"
     use_yolo: True # if True, uses YOLO for object detection; if False, uses GPD for grasp detection
+    use_limit: True # if you want to filter where the bounding box should be on the image

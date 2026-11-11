@@ -143,6 +143,8 @@ Visualization Manager:
           Value: false
         tool0:
           Value: false
+        tool0_controller:
+          Value: true
         upper_arm_link:
           Value: false
         world:
@@ -162,7 +164,8 @@ Visualization Manager:
         world:
           base_link:
             base:
-              {}
+              tool0_controller:
+                {}
             base_link_inertia:
               shoulder_link:
                 upper_arm_link:
@@ -790,16 +793,16 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 0.5827415585517883
+      Distance: 1.4876493215560913
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0.33265992999076843
-        Y: 0.10900437831878662
-        Z: 0.08227348327636719
+        X: 0.06358493119478226
+        Y: -0.07319337129592896
+        Z: 0.5230845212936401
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false

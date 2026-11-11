@@ -47,6 +47,15 @@ class ObjectDetector(Node):
         self.declare_parameter('cropping', False)
         self.cropping = self.get_parameter('cropping').value
         self.get_logger().info(f'Using cropped image: {self.cropping}')
+
+        # Area of image to look for bounding boxes
+        self.declare_parameter('limits', [0.25, 0.75, 0.25, 0.75])
+        self.x_limit_low, self.x_limit_high, self.y_limit_low,  self.y_limit_high = self.get_parameter('limits').value
+
+        # Flag to enable/disable limits:
+        self.declare_parameter('use_limit', False)
+        self.use_limit = self.get_parameter('use_limit').value
+        self.get_logger().info(f'Filtering bounding box position: {self.use_limit}')
     
         # Subscribers:
         self._img_sub =self.create_subscription(Image, "/camera/camera/color/image_raw", self.image_callback, qos_profile_sensor_data)
@@ -77,14 +86,17 @@ class ObjectDetector(Node):
             else:
                 yolo_input = image
 
+            width = image.shape[1]
+            height = image.shape[0]
+
             if not self.use_yolo:
                 detection = Detection2D()
                 detection.header = msg.header
-                detection.bbox.center.position.x = image.shape[1] / 2.0
-                detection.bbox.center.position.y = image.shape[0] / 2.0
+                detection.bbox.center.position.x = width / 2.0
+                detection.bbox.center.position.y = height / 2.0
                 detection.bbox.center.theta = 0.0
-                detection.bbox.size_x = image.shape[1] * 0.5
-                detection.bbox.size_y = image.shape[0] * 0.5
+                detection.bbox.size_x = width * 0.5
+                detection.bbox.size_y = height * 0.5
                 detection_array = Detection2DArray()
                 detection_array.header = msg.header
                 detection_array.detections.append(detection)
@@ -93,7 +105,8 @@ class ObjectDetector(Node):
                 # Annotate the image with bounding boxes and class labels with confidence score
                 annotator = Annotator(image, line_width=3)
                 color = self._colors(0, True)
-                annotator.box_label((image.shape[1] / 2.0 - detection.bbox.size_x / 2.0, image.shape[0] / 2.0 - detection.bbox.size_y / 2.0, image.shape[1] / 2.0 + detection.bbox.size_x / 2.0, image.shape[0] / 2.0 + detection.bbox.size_y / 2.0), "", color)
+
+                annotator.box_label((width / 2.0 - detection.bbox.size_x / 2.0, height / 2.0 - detection.bbox.size_y / 2.0, width / 2.0 + detection.bbox.size_x / 2.0, height / 2.0 + detection.bbox.size_y / 2.0), "", color)
                 image2 = annotator.result()
                 self._annotated_img_pub.publish(self._bridge.cv2_to_imgmsg(image2, encoding="bgr8"))
                 return
@@ -126,9 +139,15 @@ class ObjectDetector(Node):
                     detection.bbox.center.position.x = float((x1 + x2) / 2)
                     detection.bbox.center.position.y = float((y1 + y2) / 2)
 
+
+                    if self.use_limit:
+                        if not (self.x_limit_low * width <= detection.bbox.center.position.x <= self.x_limit_high * width and self.y_limit_low * height <= detection.bbox.center.position.y <= self.y_limit_high * height):
+                            continue
+
                     detection.bbox.center.theta = 0.0 # no rotation for 2D detection
                     detection.bbox.size_x = float(x2 - x1)
                     detection.bbox.size_y = float(y2 - y1)
+
 
                     # Get class ID, class name, and confidence score
                     class_id = int(box.cls[0])
