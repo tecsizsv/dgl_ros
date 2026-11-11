@@ -84,9 +84,6 @@ class GraspClient(Node):
         self.camera_frame = self.get_parameter('camera_frame').value
 
         # MoveIt parameters:
-        self.declare_parameter('rg2_hand_shift', 0.144) 
-        self.rg2_hand_shift = self.get_parameter('rg2_hand_shift').value
-
         self.declare_parameter('table_pos', [0.37, 0.0, -0.05])
         self.table_pos = self.get_parameter('table_pos').value
 
@@ -188,7 +185,7 @@ class GraspClient(Node):
         # set shape: ARROW, CUBE, SPHERE, CYLINDER, LINE_STRIP, LINE_LIST, CUBE_LIST, SPHERE_LIST, POINTS, TEXT_VIEW_FACING, MESH_RESOURCE, TRIANGLE_LIST
         marker.type = Marker.MESH_RESOURCE
         # With rotated gpd grasps use rg2_rotY90.stl mesh, with unrotated grasps use rg2.stl mesh
-        marker.mesh_resource = "package://dgl_ros_pipeline/meshes/rg2_rotY90.stl"
+        marker.mesh_resource = "package://dgl_ros_pipeline/meshes/rg2_tool.stl"
         marker.mesh_use_embedded_materials = False
         marker.action = Marker.ADD
 
@@ -409,28 +406,6 @@ class GraspClient(Node):
     #end of camera_info_callback
 
     def move_to_grasppose(self,grasp_candidate):
-        # # Getting the transformation matrix from the grasp frame to the target frame (the point where the gripper's palm will be)
-        # T_grasp_to_target = np.eye(4)
-        # T_grasp_to_target[:3, :3] = Rotation.from_euler('y', 90, degrees=True).as_matrix()
-        # T_grasp_to_target[:3, 3] = [-self.rg2_hand_shift, 0, 0] # Shift along the x-axis (because x in the grasp's frame will be the z of the gripper frame) by rg2_hand_shift
-
-        # # Converting the grasp candidate's pose to a matrix
-        # grasp_pose_mtx = np.eye(4)
-        # grasp_pose_mtx[:3, :3] = Rotation.from_quat([grasp_candidate.pose.orientation.x, grasp_candidate.pose.orientation.y, grasp_candidate.pose.orientation.z, grasp_candidate.pose.orientation.w]).as_matrix()
-        # grasp_pose_mtx[:3, 3] = [grasp_candidate.pose.position.x, grasp_candidate.pose.position.y, grasp_candidate.pose.position.z]
-
-        # # Getting the target pose matrix by multiplying the grasp pose matrix with the transformation matrix
-        # target_pose_mtx = grasp_pose_mtx @ T_grasp_to_target
-        # p = target_pose_mtx[:3, 3]  # x, y, z
-        # q = Rotation.from_matrix(target_pose_mtx[:3, :3]).as_quat()  # x, y, z, w
-
-        # # Converting the target pose matrix back to a Pose message
-        # target_pose = PoseStamped()
-        # target_pose.header.frame_id = grasp_candidate.header.frame_id  # Set the frame ID for the target pose  
-        # target_pose.header.stamp = grasp_candidate.header.stamp  # Set the timestamp for the target pose
-        # target_pose.pose.position = Point(x=float(p[0]), y=float(p[1]), z=float(p[2]))
-        # target_pose.pose.orientation = Quaternion(x=float(q[0]), y=float(q[1]), z=float(q[2]), w=float(q[3]))
-
         test_pose = PoseStamped()
         test_pose.header.frame_id = "world"
         test_pose.header.stamp = grasp_candidate.header.stamp
@@ -449,14 +424,14 @@ class GraspClient(Node):
             return False
         
         self.get_logger().info("2. Moving arm close to the grasp pose.")
-        arm_status = self._move_arm(grasp_candidate, "gripper_tcp") # Move the end of the tcp to the target pose
+        arm_status = self._move_arm(grasp_candidate, "pregrasp_frame") # Move the end of the tcp to the target pose
 
         if not arm_status:
             self.get_logger().warning("✖ ✖ ✖ Moving arm to grasp pose failed. ✖ ✖ ✖\n<<<<<<<<<<<< END <<<<<<<<<<<<<<<<")
             return False
 
         self.get_logger().info("3. Moving gripper to the grasp pose.")
-        grasping_status = self._move_arm(grasp_candidate, "grasping_frame") # Move the hand of the robot to the grasping pose
+        grasping_status = self._move_arm(grasp_candidate, "grasp_frame") # Move the hand of the robot to the grasping pose
 
         if not grasping_status:
             self.get_logger().warning("✖ ✖ ✖ Moving gripper to grasp pose failed. ✖ ✖ ✖\n<<<<<<<<<<<< END <<<<<<<<<<<<<<<<")

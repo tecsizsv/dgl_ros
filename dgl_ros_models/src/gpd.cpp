@@ -137,10 +137,7 @@ SampleGraspPoses::Result::SharedPtr Gpd::actionFromObs(std::shared_ptr<GpdObserv
     // Transform grasp from camera optical link into frame_id
     const Eigen::Isometry3d transform_opt_grasp =
         Eigen::Translation3d(grasps.at(id)->getPosition()) * Eigen::Quaterniond(grasps.at(id)->getOrientation());
-    // GPD grasp frame: x = approach, y = binormal, z = hand axis.
-    // Rotate so that z = approach, matching the gripper_tcp frame convention.
-    const Eigen::Isometry3d rotY90 (Eigen::AngleAxisd(M_PI / 2, Eigen::Vector3d::UnitY()));
-    const Eigen::Isometry3d transform_base_grasp = tf_world_src_ * transform_opt_grasp * rotY90;
+    const Eigen::Isometry3d transform_base_grasp = tf_world_src_ * transform_opt_grasp;
     const Eigen::Vector3d trans = transform_base_grasp.translation();
     const Eigen::Quaterniond rot(transform_base_grasp.rotation());
 

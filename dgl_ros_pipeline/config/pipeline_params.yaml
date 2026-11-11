@@ -19,13 +19,12 @@ grasp_client:
     z_max: 0.2 # the highest expected object
     margin: 0.0
     camera_frame: camera_color_optical_frame
-    rg2_hand_shift: 0.144 # in meter the distance between the gripper base and the gripper's palm (the point where the fingers meet)
     table_pos: [0.37, 0.0, -0.05] # box center in world frame [m]
     table_dim: [0.7, 1.0, 0.1] # box size x, y, z [m]
 
 object_detector:
   ros__parameters:
-    cropping: True
+    cropping: False
     crop: [0, 0, 450, 720] # x1, y1, x2, y2, (left -> right, top ->bottom)
     # Options: yolo26m-objv1-150.pt (Objects365), yolo26m.pt (COCO), yolov8s-world.pt (World)
     model: yolo26m-objv1-150.pt
