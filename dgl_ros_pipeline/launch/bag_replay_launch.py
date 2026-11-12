@@ -2,7 +2,7 @@ import os
 import yaml
 import json
 from launch import LaunchDescription
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch.actions import (
     DeclareLaunchArgument,
     ExecuteProcess,
@@ -46,16 +46,17 @@ def generate_launch_description():
     with open(controllers_file) as f:
         controllers = yaml.safe_load(f)
 
-    rosbag_name_arg = DeclareLaunchArgument('rosbag_name', default_value='cam_aligned_mug2', description='Name of the rosbag to play')
     log_level_arg = DeclareLaunchArgument('log_level', default_value='info')
     
+    # Rosbag stuff
+    rosbag_dir = "/workspaces/vision-based-rgp-devcontainer/rosbags"
+    rosbag_name_arg = DeclareLaunchArgument('rosbag', default_value='mug_aligned', description='Name of the rosbag to play')
+    rosbag_path = PathJoinSubstitution([rosbag_dir, LaunchConfiguration("rosbag"),])
+    
     bag_play = ExecuteProcess(
-        cmd=[
-            "ros2", "bag", "play",
-            LaunchConfiguration('rosbag_name'),
-            "--loop",
-            "--rate", "0.3",
-            "--progress-bar-update-rate", "0"
+        cmd=["ros2", "bag", "play", rosbag_path,
+             "--loop", "--rate", "0.3",
+             "--progress-bar-update-rate", "0"
         ],
         output="screen",
     )
