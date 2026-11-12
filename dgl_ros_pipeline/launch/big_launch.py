@@ -92,7 +92,7 @@ def generate_launch_description():
     rviz2 = Node( # elindítja az rviz-t
         package="rviz2",
         executable="rviz2",
-        name="rviz2",
+        #name="rviz2",
         arguments=["-d", os.path.join(dgl_share, "config", "config.rviz")],
         parameters=[{"robot_description_kinematics": kinematics}],
         ros_arguments=['--log-level', 'warn'],
