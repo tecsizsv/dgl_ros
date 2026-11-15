@@ -1,6 +1,7 @@
 /**:
   ros__parameters:
     world_frame: world
+    file_logger_dir_path: "/workspaces/vision-based-rgp-devcontainer/src/dgl_ros/dgl_ros_pipeline/logfiles"
 
 camera_base_tf:
   ros__parameters:
@@ -21,6 +22,7 @@ grasp_client:
     camera_frame: camera_color_optical_frame
     table_pos: [0.37, 0.0, -0.05] # box center in world frame [m]
     table_dim: [0.7, 1.0, 0.1] # box size x, y, z [m]
+    file_logger: True # Set to True to log runtime data
 
 object_detector:
   ros__parameters:
@@ -34,4 +36,5 @@ object_detector:
     limits: [0.0, 0.75, 0.0, 1.0]
     device: "cuda:0" # or "cpu"
     use_yolo: True # if True, uses YOLO for object detection; if False, uses GPD for grasp detection
-    use_limit: True # if you want to filter where the bounding box should be on the image
+    use_limit: False # if you want to filter where the bounding box should be on the image
+    file_logger: True # Set to True to log yolo runtime data

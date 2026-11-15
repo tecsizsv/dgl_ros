@@ -1,6 +1,9 @@
 import cv2
 import rclpy
 import cv_bridge
+import logging
+from datetime import datetime
+from pathlib import Path
 from rclpy.node import Node
 from rclpy.executors import ExternalShutdownException
 from ultralytics import YOLO
@@ -13,7 +16,6 @@ class ObjectDetector(Node):
 
     def __init__(self):
         super().__init__('object_detector')
-
         self._bridge = cv_bridge.CvBridge()
 
         self._colors = Colors()  # For consistent colors across runs
@@ -57,22 +59,43 @@ class ObjectDetector(Node):
         self.use_limit = self.get_parameter('use_limit').value
         self.get_logger().info(f'Filtering bounding box position: {self.use_limit}')
     
+        # Flag to enable/disable yolo usage:
+        self.declare_parameter('use_yolo', False)
+        self.use_yolo = self.get_parameter('use_yolo').value
+        self.get_logger().info(f'Using YOLO: {self.use_yolo}')
+
         # Subscribers:
         self._img_sub =self.create_subscription(Image, "/camera/camera/color/image_raw", self.image_callback, qos_profile_sensor_data)
+        self.get_logger().info(f"Subscribing to: {self._img_sub.topic_name}")
 
         # Publishers:
         self._detections_pub = self.create_publisher(Detection2DArray, "detections", 10)
         self._annotated_img_pub = self.create_publisher(Image, "annotated_image", 10)
-
-        # Logging some info
-        self.get_logger().info(f"Subscribing to: {self._img_sub.topic_name}")
         self.get_logger().info(f"Publishing detections to: {self._detections_pub.topic_name}")
 
-        # Should use yolo
-        self.declare_parameter('use_yolo', False)
-        self.use_yolo = self.get_parameter('use_yolo').value
-        self.get_logger().info(f'Using YOLO: {self.use_yolo}')
-    
+        # File logger setup
+        self.declare_parameter('file_logger', False)
+        self.declare_parameter('file_logger_dir_path', '/workspaces/vision-based-rgp-devcontainer/src/dgl_ros/dgl_ros_pipeline/logfiles')
+        self.file_logger = self.get_parameter('file_logger').value
+
+        if self.file_logger:
+            log_dir = Path( self.get_parameter('file_logger_dir_path').value)
+            yolo = Path(self._model.model_name).stem
+            stamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            
+            self._file_logger = logging.getLogger(f'{self.get_name()}_file')
+            self._file_logger.setLevel(logging.INFO)
+            self._file_logger.propagate = False
+            handler = logging.FileHandler(log_dir / f'object_detector_{yolo}_{stamp}.log', encoding='utf-8')
+            handler.setFormatter(logging.Formatter('%(asctime)s.%(msecs)03d,%(message)s', '%Y-%m-%d %H:%M:%S'))
+            self._file_logger.addHandler(handler)
+            logging.basicConfig(
+                filename=log_dir / f'object_detector_{yolo}_{stamp}.log',
+                format='%(asctime)s.%(msecs)03d,%(message)s',
+                datefmt='%Y-%m-%d %H:%M:%S',
+                encoding='utf-8',
+                level=logging.INFO,
+            )
     #end of __init__
 
     def image_callback(self, msg):
@@ -178,6 +201,10 @@ class ObjectDetector(Node):
                 annotated_img = self._bridge.cv2_to_imgmsg(image, encoding="bgr8")
                 annotated_img.header = msg.header
                 self._annotated_img_pub.publish(annotated_img)
+
+                # Logging yolo runtimes
+                if self.file_logger:
+                    self._file_logger.info(sum(result.speed.values()))
         
         except Exception as e:
             self.get_logger().error(f"Error processing image: {str(e)}")

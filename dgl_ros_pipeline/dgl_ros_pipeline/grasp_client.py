@@ -4,6 +4,9 @@ import time
 from turtle import color
 import rclpy
 import numpy as np
+import logging
+from datetime import datetime
+from pathlib import Path
 from rclpy.action import ActionClient
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
@@ -113,9 +116,24 @@ class GraspClient(Node):
         self._add_collision_object()
 
         # Numbers to measure the success rate of grasping attempts
-        self.fail = 0
-        self.successes = 0
-    
+        self.cycle_id = 0
+        self.success = 0
+
+        # File logger setup
+        self.declare_parameter('file_logger', False)
+        self.declare_parameter('file_logger_dir_path', '/workspaces/vision-based-rgp-devcontainer/src/dgl_ros/dgl_ros_pipeline/logfiles')
+        self.file_logger = self.get_parameter('file_logger').value
+
+        if self.file_logger:
+            log_dir = Path( self.get_parameter('file_logger_dir_path').value)
+            stamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+
+            self._file_logger = logging.getLogger(f'{self.get_name()}_file')
+            self._file_logger.setLevel(logging.INFO)
+            self._file_logger.propagate = False
+            handler = logging.FileHandler(log_dir / f'grasp_client_{stamp}.log', encoding='utf-8')
+            handler.setFormatter(logging.Formatter('%(asctime)s.%(msecs)03d,%(message)s', '%Y-%m-%d %H:%M:%S'))
+            self._file_logger.addHandler(handler)
     #end of __init__
 
     #Method waits for the action server to be available, then sends a goal to the server. It returns a future that we can later wait on.
@@ -129,6 +147,7 @@ class GraspClient(Node):
 
         # ◯★•✦.․✦•★◯
         self.get_logger().info(f'<<<<<<<<<<< BEGIN <<<<<<<<<<<<<<<\n ◯★•✦.․✦•★◯ Sending goal request. ◯★•✦.․✦•★◯\n workspace = {workspace}')
+        self.cycle_id+=1
 
         # Async callback      
         self._send_goal_future = self._action_client.send_goal_async(goal_msg, feedback_callback=self.feedback_callback)
@@ -159,11 +178,15 @@ class GraspClient(Node):
 
             if not result.grasp_candidates:
                 self.get_logger().warning('No grasp candidates found.')
+                self._log_cycle_end("NO_GRASP")
                 return
 
             self.publish_grasp_markers(result.grasp_candidates)
 
-            self.move_to_grasppose(result.grasp_candidates[0]) # Move to the first grasp candidate
+            outcome = self.move_to_grasppose(result.grasp_candidates[0]) # Move to the first grasp candidate
+            if outcome == "OK":
+                self.success += 1
+            self._log_cycle_end(outcome)
         finally:
             self.busy = False       
     #end of get_result_callback
@@ -415,27 +438,31 @@ class GraspClient(Node):
         # Publish the target pose for visualization
         self._target_pose_pub.publish(grasp_candidate)
 
-
         self.get_logger().info("1. Opening gripper before moving the arm.")
         gripper_status = self._move_gripper("open") # Open the gripper before moving to the grasp pose
 
         if not gripper_status:
             self.get_logger().warning("✖ ✖ ✖ Opening gripper failed. ✖ ✖ ✖\n<<<<<<<<<<<< END <<<<<<<<<<<<<<<<")
-            return False
+            if self.file_logger:
+                self._file_logger.info()
+            # return False
+            return "GRIPPER_OPEN"
         
         self.get_logger().info("2. Moving arm close to the grasp pose.")
         arm_status = self._move_arm(grasp_candidate, "pregrasp_frame") # Move the end of the tcp to the target pose
 
         if not arm_status:
             self.get_logger().warning("✖ ✖ ✖ Moving arm to grasp pose failed. ✖ ✖ ✖\n<<<<<<<<<<<< END <<<<<<<<<<<<<<<<")
-            return False
+            # return False
+            return "ARM_PREGRASP"
 
         self.get_logger().info("3. Moving gripper to the grasp pose.")
         grasping_status = self._move_arm(grasp_candidate, "grasp_frame") # Move the hand of the robot to the grasping pose
 
         if not grasping_status:
             self.get_logger().warning("✖ ✖ ✖ Moving gripper to grasp pose failed. ✖ ✖ ✖\n<<<<<<<<<<<< END <<<<<<<<<<<<<<<<")
-            return False
+            #return False
+            return "ARM_GRASP"
 
         self.moveit_execution_started = True  # Set the flag to indicate that MoveIt execution has started
 
@@ -444,10 +471,12 @@ class GraspClient(Node):
 
         if not gripper_status:
             self.get_logger().warning("✖ ✖ ✖ Closing gripper failed. ✖ ✖ ✖\n<<<<<<<<<<<< END <<<<<<<<<<<<<<<<")
-            return False
+            # return False
+            return "GRIPPER_CLOSE"
         
         self.get_logger().info("◯ ◯ ◯ Grasping sequence completed successfully. ◯ ◯ ◯\n<<<<<<<<<<<< END <<<<<<<<<<<<<<<<")
-        return True
+        # return True
+        return "OK"
     #end of move_to_grasppose
 
     def _move_arm(self, pose, pose_link):
@@ -515,7 +544,12 @@ class GraspClient(Node):
                   
         self._collision_obj_pub.publish(collision_object)
     #end of _add_collision_object
-    
+
+    def _log_cycle_end(self, outcome):
+        if self.file_logger:
+            self._file_logger.info(f'{self.cycle_id},cycle_end,,{outcome}')
+    #end of _log_cycle_end
+
 def main(args=None):
     try:
         with rclpy.init(args=args):
