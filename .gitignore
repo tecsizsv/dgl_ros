@@ -4,3 +4,4 @@ log/
 build/
 __pycache__/
 *.pyc
+dgl_ros_pipeline/logfiles/
