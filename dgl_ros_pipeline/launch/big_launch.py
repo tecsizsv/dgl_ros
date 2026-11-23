@@ -110,14 +110,14 @@ def generate_launch_description():
                 "src_frame0": "camera_depth_optical_frame",
             }
         ],
-        output="screen",
+        output="both",
     )
 
     object_detection = Node( # elindítja az object detectiont, ami a kamera topicjára feliratkozik, és a detektált objektumokat publikálja
         package="dgl_ros_pipeline",
         executable="object_detector",
         name="object_detector",
-        output="screen",
+        output="both",
         parameters=[pipeline_params],
         ros_arguments=['--log-level', LaunchConfiguration('log_level')],
     )
