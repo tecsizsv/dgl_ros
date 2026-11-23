@@ -63,7 +63,7 @@ def generate_launch_description():
         }.items(),
     )
 
-    static_tf = Node( # publikálja a transzformot: cameralink hol van a world-höz képest
+    camera_static_tf = Node( # publikálja a transzformot: cameralink hol van a world-höz képest
         package="tf2_ros",
         executable="static_transform_publisher",
         name="camera_base_tf",
@@ -99,7 +99,7 @@ def generate_launch_description():
         output="log",
     )
 
-    gpd_node = Node(
+    grasp_server = Node(
         package="dgl_ros_models",
         executable="gpd",
         parameters=[
@@ -199,10 +199,10 @@ def generate_launch_description():
         output="log",
     )
 
-    start_gpd_after_cam = RegisterEventHandler(
+    grasp_server_start_handler = RegisterEventHandler(
         event_handler=OnProcessExit(
             target_action=wait_for_camera,
-            on_exit=[gpd_node],
+            on_exit=[grasp_server],
         )
      )
 
@@ -210,10 +210,10 @@ def generate_launch_description():
         log_level_arg,
         realsense_launch,
         wait_for_camera,
-        static_tf,
+        camera_static_tf,
         moveit,
         rviz2,
         object_detection,
-        start_gpd_after_cam,
+        grasp_server_start_handler,
         grasp_client,
     ])
