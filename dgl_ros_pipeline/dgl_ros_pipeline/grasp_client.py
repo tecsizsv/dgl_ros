@@ -1,7 +1,6 @@
 # Added some notes based on the ROS tutorials (https://docs.ros.org/en/kilted/Tutorials/)
 import json
 import time
-from turtle import color
 import rclpy
 import numpy as np
 import logging
@@ -76,9 +75,9 @@ class GraspClient(Node):
         self.margin = self.get_parameter('margin').value
 
         # Flags:
-        self.busy = False # an action is running or not
-        self.camera_read = False # successful camera parameter update
-        self.moveit_execution_started = False # execution instance started or not
+        self.is_grasp_cycle_active = False # an action is running or not
+        self.has_valid_intrinsics = False # successful camera parameter update
+        self.is_motion_phase_active = False # motion phase started or not
 
         # Frames:
         self.declare_parameter('world_frame', 'world')
@@ -160,7 +159,7 @@ class GraspClient(Node):
         goal_handle = future.result()
         if not goal_handle.accepted:
             self.get_logger().warning('Goal rejected :(')
-            self.busy = False
+            self.is_grasp_cycle_active = False
             return
 
         self.get_logger().info('Goal accepted, waiting for result :)')
@@ -188,7 +187,7 @@ class GraspClient(Node):
                 self.success += 1
             self._log_cycle_end(outcome)
         finally:
-            self.busy = False       
+            self.is_grasp_cycle_active = False       
     #end of get_result_callback
 
     #This method is called when the action server sends feedback about the goal.
@@ -259,7 +258,7 @@ class GraspClient(Node):
     #end of publish_grasp_markers
         
     def detection_callback(self, msg):
-        if self.busy or self.moveit_execution_started:
+        if self.is_grasp_cycle_active or self.is_motion_phase_active or not self.has_valid_intrinsics:
             return
 
         # Check if there is a message
@@ -273,7 +272,7 @@ class GraspClient(Node):
         if workspace is None:
             return
 
-        self.busy = True
+        self.is_grasp_cycle_active = True
         self.send_goal(workspace)
     #end of detection_callback
 
@@ -405,7 +404,7 @@ class GraspClient(Node):
     #end of _get_tf
 
     def camera_info_callback(self, msg):
-        if self.camera_read:
+        if self.has_valid_intrinsics:
             return
 
         if msg.k[0] <= 0.0 or msg.k[4] <= 0.0:
@@ -424,8 +423,8 @@ class GraspClient(Node):
 
         self.get_logger().info(f'Camera parameters updated: fx={self.fx}, fy={self.fy}, cx={self.cx}, cy={self.cy}')
         
-        self.camera_read = True
-        self.destroy_subscription(self._cam_info_sub)  # Unsubscribe after receiving the first message
+        self.has_valid_intrinsics = True
+        self.destroy_subscription(self._cam_info_sub)  # Unsubscribe after receiving the first valid message
     #end of camera_info_callback
 
     def move_to_grasppose(self,grasp_candidate):
@@ -435,7 +434,7 @@ class GraspClient(Node):
         test_pose.pose.position = Point(x=0.439, y=0.309, z=0.931)
         test_pose.pose.orientation = Quaternion(x=0.500, y=0.500, z=0.500, w=-0.500)
 
-        # Publish the target pose for visualization
+        # Publish the target pose for visualization and debug purposes
         self._target_pose_pub.publish(grasp_candidate)
 
         self.get_logger().info("1. Opening gripper before moving the arm.")
@@ -443,8 +442,6 @@ class GraspClient(Node):
 
         if not gripper_status:
             self.get_logger().warning("✖ ✖ ✖ Opening gripper failed. ✖ ✖ ✖\n<<<<<<<<<<<< END <<<<<<<<<<<<<<<<")
-            if self.file_logger:
-                self._file_logger.info()
             # return False
             return "GRIPPER_OPEN"
         
@@ -464,7 +461,7 @@ class GraspClient(Node):
             #return False
             return "ARM_GRASP"
 
-        self.moveit_execution_started = True  # Set the flag to indicate that MoveIt execution has started
+        self.is_motion_phase_active = True  # Set the flag to indicate that MoveIt execution has started
 
         self.get_logger().info("4. Closing gripper around object.")
         gripper_status = self._move_gripper("closed")
