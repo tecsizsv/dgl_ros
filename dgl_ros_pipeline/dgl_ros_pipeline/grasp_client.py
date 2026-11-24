@@ -1,6 +1,5 @@
 # Added some notes based on the ROS tutorials (https://docs.ros.org/en/kilted/Tutorials/)
 import json
-import time
 import rclpy
 import numpy as np
 import logging
@@ -559,9 +558,6 @@ def main(args=None):
         with rclpy.init(args=args):
             # instance of our GraspClient node
             action_client = GraspClient()
-
-            #delay 5 seconds to allow the action server to start up
-            # time.sleep(5)
 
             rclpy.spin(action_client)
     except (KeyboardInterrupt, ExternalShutdownException):
