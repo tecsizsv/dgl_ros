@@ -119,7 +119,7 @@ def generate_launch_description():
         name="object_detector",
         output="both",
         parameters=[pipeline_params],
-        ros_arguments=['--log-level', LaunchConfiguration('log_level')],
+        ros_arguments=['--log-level', 'info'],
     )
 
     moveit_config = (

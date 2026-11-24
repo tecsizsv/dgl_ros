@@ -19,7 +19,6 @@ grasp_client:
     z_min: -0.03 # just above the table -0.02
     z_max: 0.2 # the highest expected object
     margin: 0.05
-    camera_frame: camera_color_optical_frame
     table_pos: [0.37, 0.0, -0.05] # box center in world frame [m]
     table_dim: [0.7, 1.0, 0.1] # box size x, y, z [m]
     file_logger: True # Set to True to log runtime data
