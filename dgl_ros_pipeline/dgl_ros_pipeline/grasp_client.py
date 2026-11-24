@@ -52,7 +52,7 @@ class GraspClient(Node):
         self.table_dim = self.get_parameter('table_dim').value
         moveit_config_json = self.get_parameter("moveit_config_json").value
         self.enable_file_logging = self.get_parameter('enable_file_logging').value
-        log_dir = Path( self.get_parameter('log_dir').value)
+        log_dir = Path( self.get_parameter('log_dir').value)/ 'grasp_client'
 
         # Initialize camera intrinsics: updated from the CameraInfo message (/camera/camera/color/camera_info)
         self.fx = None
@@ -186,8 +186,10 @@ class GraspClient(Node):
 
     def _log_cycle_end(self, outcome):
         """Write the cycle ID and outcome to the log file if file logging is enabled."""
-
+        # TODO: evaluate_results.py script!
         if self.enable_file_logging:
+            # timestamp, cycle_id, event, unused, outcome
+            # 2026-11-24 20:15:30.123,1,cycle_end,,OK
             self._file_logger.info(f'{self.cycle_id},cycle_end,,{outcome}')
 # endregion
 

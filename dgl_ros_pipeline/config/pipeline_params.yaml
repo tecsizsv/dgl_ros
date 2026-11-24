@@ -37,4 +37,4 @@ object_detector:
     crop_bounds: [0, 0, 450, 720]           # crop boundaries in pixels: x1, y1, x2, y2 (left -> right, top -> bottom)
     filter_by_position: False               # enable bbox center position filtering: drop detections whose bbox center is outside limits
     position_limits: [0.0, 0.75, 0.0, 1.0]  # x_min, x_max, y_min, y_max as fraction of image size (0..1)
-    enable_file_logging: True               # enable YOLO runtime logging to file
+    enable_file_logging: False               # enable YOLO runtime logging to file

@@ -51,7 +51,7 @@ class ObjectDetector(Node):
         self.filter_by_position = self.get_parameter('filter_by_position').value
         self.x_limit_min, self.x_limit_max, self.y_limit_min,  self.y_limit_max = self.get_parameter('position_limits').value
         self.enable_file_logging = self.get_parameter('enable_file_logging').value
-        log_dir = Path(self.get_parameter('log_dir').value)
+        log_dir = Path(self.get_parameter('log_dir').value)/ 'object_detector'
 
         # Initialize YOLO model
         if self.use_yolo:
