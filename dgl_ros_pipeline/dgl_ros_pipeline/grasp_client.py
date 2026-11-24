@@ -21,8 +21,8 @@ from moveit_msgs.msg import CollisionObject
 from shape_msgs.msg import SolidPrimitive
 
 class GraspClient(Node):
-    """Initialize the grasp client, communication interfaces and MoveItPy."""
-
+    """Coordinate workspace calculation, grasp pose estimation and grasp execution."""
+# region Initialization
     def __init__(self):
         """Set up the action client, publishers, subscribers, TF listener, parameters and MoveItPy."""
         
@@ -38,8 +38,8 @@ class GraspClient(Node):
                 ('table_pos', [0.37, 0.0, -0.05]),
                 ('table_dim', [0.7, 1.0, 0.1]),
                 ('moveit_config_json', ''),
-                ('file_logger', False),
-                ('file_logger_dir_path', '/workspaces/vision-based-rgp-devcontainer/src/dgl_ros/dgl_ros_pipeline/logfiles'),
+                ('enable_file_logging', False),
+                ('log_dir', '/workspaces/vision-based-rgp-devcontainer/src/dgl_ros/dgl_ros_pipeline/logfiles'),
             ]
         )
 
@@ -50,9 +50,9 @@ class GraspClient(Node):
         self.margin = self.get_parameter('margin').value
         self.table_pos = self.get_parameter('table_pos').value
         self.table_dim = self.get_parameter('table_dim').value
-        config_json = self.get_parameter("moveit_config_json").value
-        self.file_logger = self.get_parameter('file_logger').value
-        log_dir = Path( self.get_parameter('file_logger_dir_path').value)
+        moveit_config_json = self.get_parameter("moveit_config_json").value
+        self.enable_file_logging = self.get_parameter('enable_file_logging').value
+        log_dir = Path( self.get_parameter('log_dir').value)
 
         # Initialize camera intrinsics: updated from the CameraInfo message (/camera/camera/color/camera_info)
         self.fx = None
@@ -67,7 +67,7 @@ class GraspClient(Node):
 
         # Initialize grasp cycle counters
         self.cycle_id = 0
-        self.success = 0        
+        self.successful_cycles = 0        
 
         # Initialize TF buffer and listener
         self.tf_buffer = Buffer()
@@ -81,27 +81,50 @@ class GraspClient(Node):
         self._action_client = ActionClient(self, SampleGraspPoses, 'sample_grasp_poses')
 
         # Initialize subscribers and publishers
-        self._det_sub = self.create_subscription(
+        self._detection_sub = self.create_subscription(
             Detection2DArray, 'detections', self.detection_callback, 10)
-        self._cam_info_sub = self.create_subscription(
+        self._camera_info_sub = self.create_subscription(
             CameraInfo, '/camera/camera/color/camera_info', self.camera_info_callback, 10)
         
-        self._marker_pub = self.create_publisher(
+        self._grasp_marker_pub = self.create_publisher(
             MarkerArray, 'grasp_markers', 10)
         self._target_pose_pub = self.create_publisher(
             PoseStamped, 'target_pose', 10)
-        self._collision_obj_pub= self.create_publisher(
+        self._collision_object_pub= self.create_publisher(
             CollisionObject, '/collision_object', 10)
 
         # Initialize MoveItPy
-        if not config_json:
+        self._initialize_moveit(moveit_config_json)
+           
+        # Configure file logger
+        if self.enable_file_logging:
+            self._setup_file_logger(log_dir)
+            
+        # Log node configuration
+        self.get_logger().info(
+            f'Grasp client initialized :)\n'
+            f'  World frame:        {self.world_frame}\n'
+            f'  Workspace z min:    {self.z_min} m\n'
+            f'  Workspace z max:    {self.z_max} m\n'
+            f'  Workspace margin:   {self.margin} m\n'
+            f'  Table position:     {self.table_pos}\n'
+            f'  Table dimensions:   {self.table_dim}\n'
+            f'  File logging:       {self.enable_file_logging}\n'
+            f'  Detections topic:   {self._detection_sub.topic_name}\n'
+            f'  Camera info topic:  {self._camera_info_sub.topic_name}\n'
+            f'  Grasp markers:      {self._grasp_marker_pub.topic_name}'
+        )
+
+    def _initialize_moveit(self, moveit_config_json):
+        """Initialize MoveItPy, planning components and the planning scene monitor."""
+        if not moveit_config_json:
             raise RuntimeError("Missing MoveItPy configuration.")
 
         self.get_logger().info('Initializing MoveItPy...')
 
         self.moveit = MoveItPy(
             node_name="grasp_planner",
-            config_dict=json.loads(config_json)
+            config_dict=json.loads(moveit_config_json)
         )
 
         self.robot_arm = self.moveit.get_planning_component("ur_onrobot_manipulator")
@@ -116,142 +139,82 @@ class GraspClient(Node):
 
         # Add table to the planning scene
         self._add_collision_object()
-        
-        # Configure file logger
-        if self.file_logger:
-            log_dir.mkdir(parents=True, exist_ok=True)
-            stamp = datetime.now().strftime('%Y%m%d_%H%M%S')
 
-            self._file_logger = logging.getLogger(f'{self.get_name()}_file')
-            self._file_logger.setLevel(logging.INFO)
-            self._file_logger.propagate = False
+    def _add_collision_object(self):
+        """Add the table as a collision object to the planning scene."""
 
-            handler = logging.FileHandler(log_dir / f'grasp_client_{stamp}.log', encoding='utf-8')
-            handler.setFormatter(logging.Formatter('%(asctime)s.%(msecs)03d,%(message)s', '%Y-%m-%d %H:%M:%S'))
-            self._file_logger.addHandler(handler)
+        with self.psm.read_write() as scene:
+            collision_object = CollisionObject()
+            collision_object.header.frame_id = "world"
+            collision_object.id = "table"
 
-        # Log node configuration
-        self.get_logger().info(
-            f'Grasp client initialized :)\n'
-            f'  World frame:        {self.world_frame}\n'
-            f'  Workspace z min:    {self.z_min} m\n'
-            f'  Workspace z max:    {self.z_max} m\n'
-            f'  Workspace margin:   {self.margin} m\n'
-            f'  Table position:     {self.table_pos}\n'
-            f'  Table dimensions:   {self.table_dim}\n'
-            f'  File logging:       {self.file_logger}\n'
-            f'  Detections topic:   {self._det_sub.topic_name}\n'
-            f'  Camera info topic:  {self._cam_info_sub.topic_name}\n'
-            f'  Grasp markers:      {self._marker_pub.topic_name}'
-        )
-    #end of __init__
+            box_pose = Pose()
+            x, y, z = self.table_pos
+            box_pose.position = Point(x=x, y=y, z=z)
+            box_pose.orientation.x = 0.0
+            box_pose.orientation.y = 0.0
+            box_pose.orientation.z = 0.0
+            box_pose.orientation.w = 1.0
 
-    def send_goal(self, workspace):
-        """ Wait for the action server to be available, then send a goal with the workspace to the server. """
+            box = SolidPrimitive()
+            box.type = SolidPrimitive.BOX
+            box.dimensions = self.table_dim
 
-        goal_msg = SampleGraspPoses.Goal()
-        goal_msg.action_name =  'sample_grasp_poses'
-        goal_msg.workspace = workspace
+            collision_object.primitives.append(box)
+            collision_object.primitive_poses.append(box_pose)
+            collision_object.operation = CollisionObject.ADD
 
-        self.get_logger().debug('Waiting for action server...')
-        self._action_client.wait_for_server()
+            scene.apply_collision_object(collision_object)
+            scene.current_state.update()  # Important to ensure the scene is updated
+                  
+        self._collision_object_pub.publish(collision_object)  
+# endregion
 
-        # ◯★•✦.․✦•★◯
-        self.get_logger().info(f'<<<<<<<<<<< BEGIN <<<<<<<<<<<<<<<\n ◯★•✦.․✦•★◯ Sending goal request. ◯★•✦.․✦•★◯\n workspace = {workspace}')
-        self.cycle_id+=1
+# region Logging
+    def _setup_file_logger(self, log_dir):
+        """Configure the file logger for grasp cycle results."""
+        log_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
 
-        # Send goal asynchronously     
-        self._send_goal_future = self._action_client.send_goal_async(goal_msg, feedback_callback=self.feedback_callback)
+        self._file_logger = logging.getLogger(f'{self.get_name()}_file')
+        self._file_logger.setLevel(logging.INFO)
+        self._file_logger.propagate = False
 
-        self._send_goal_future.add_done_callback(self.goal_response_callback)
-    #end of send_goal
+        handler = logging.FileHandler(log_dir / f'grasp_client_{timestamp}.log', encoding='utf-8')
+        handler.setFormatter(logging.Formatter('%(asctime)s.%(msecs)03d,%(message)s', '%Y-%m-%d %H:%M:%S'))
+        self._file_logger.addHandler(handler)
 
-    def goal_response_callback(self, future):
-        """Handle the server's response to the goal and request the result if it was accepted."""
+    def _log_cycle_end(self, outcome):
+        """Write the cycle ID and outcome to the log file if file logging is enabled."""
 
-        goal_handle = future.result()
-        if not goal_handle.accepted:
-            self.get_logger().warning('Goal rejected :(')
-            self.is_grasp_cycle_active = False
+        if self.enable_file_logging:
+            self._file_logger.info(f'{self.cycle_id},cycle_end,,{outcome}')
+# endregion
+
+# region Subscription callbacks
+    def camera_info_callback(self, msg):
+        """Update the camera intrinsics from the first valid CameraInfo message."""
+        if self.has_valid_intrinsics:
             return
 
-        self.get_logger().info('Goal accepted, waiting for result :)')
+        if msg.k[0] <= 0.0 or msg.k[4] <= 0.0:
+            self.get_logger().warning('Invalid camera info message received, waiting for next one...',throttle_duration_sec=2.0)
+            return
         
-        self._get_result_future = goal_handle.get_result_async()
-        self._get_result_future.add_done_callback(self.get_result_callback)
-    #end of goal_response_callback
+        # K camera intrinsic matrix: # camera focal length in pixel # optical center of the image in pixel
+        #   fx    0   cx
+        #    0   fy   cy
+        #    0    0   1
+        self.fx = msg.k[0]
+        self.fy = msg.k[4]
+        self.cx = msg.k[2]
+        self.cy = msg.k[5]
 
-    def get_result_callback(self, future):
-        """ Process the action result: visualize the grasp candidates and execute the best one."""
-        try:
-            result = future.result().result
-
-            self.get_logger().debug(message_to_yaml(result))
-
-            if not result.grasp_candidates:
-                self.get_logger().warning('No grasp candidates found.')
-                self._log_cycle_end("NO_GRASP")
-                return
-
-            self.publish_grasp_markers(result.grasp_candidates)
-
-            outcome = self.move_to_grasppose(result.grasp_candidates[0]) # Move to the first grasp candidate
-            if outcome == "OK":
-                self.success += 1
-            self._log_cycle_end(outcome)
-        finally:
-            self.is_grasp_cycle_active = False       
-    #end of get_result_callback
-
-    def feedback_callback(self, feedback_msg):
-        """Log the feedback received from the action server."""
-        feedback = feedback_msg.feedback
-
-        self.get_logger().debug(message_to_yaml(feedback))
-    #end of feedback_callback
-
-    def _make_marker(self, grasp_candidate, marker_id):
-        """Create a gripper mesh marker at the pose of a grasp candidate."""
-        marker = Marker()
-        marker.header.frame_id = grasp_candidate.header.frame_id
-        marker.header.stamp = self.get_clock().now().to_msg()
-        marker.ns = 'grasp_candidates'
-        marker.id = marker_id
-        marker.type = Marker.MESH_RESOURCE
-        marker.mesh_resource = "package://dgl_ros_pipeline/meshes/rg2_tool.stl"
-        marker.mesh_use_embedded_materials = False
-        marker.action = Marker.ADD
-        marker.pose = grasp_candidate.pose
-        marker.scale.x = marker.scale.y = marker.scale.z = 1.0
-
-        # Set marker color
-        marker.color.r = 0.922
-        marker.color.g = 0.114
-        marker.color.b = 0.596
-        marker.color.a = 1.0
-
-        return marker
-    #end of _make_marker 
-  
-    def publish_grasp_markers(self, grasp_candidates):
-        """Clear the previous markers and publish the current grasp candidates for RViz."""
-
-        marker_array = MarkerArray()
-
-        # Clear previously published markers
-        delete_marker = Marker()
-        delete_marker.action = Marker.DELETEALL
-
-        marker_array.markers.append(delete_marker)
-
-        #Create a marker for each grasp candidate and add it to the marker array
-        for i in range(len(grasp_candidates)):
-            marker = self._make_marker(grasp_candidates[i], i)
-            marker_array.markers.append(marker)
-
-        self._marker_pub.publish(marker_array)  
-    #end of publish_grasp_markers
+        self.get_logger().info(f'Camera parameters updated: fx={self.fx}, fy={self.fy}, cx={self.cx}, cy={self.cy}')
         
+        self.has_valid_intrinsics = True
+        self.destroy_subscription(self._camera_info_sub)  # Unsubscribe after receiving the first valid message
+
     def detection_callback(self, msg):
         """Start a grasp cycle for the first detection if no cycle or motion is in progress."""
 
@@ -262,22 +225,23 @@ class GraspClient(Node):
         if not msg.detections:
             return
     
-        det = msg.detections[0]
-        frame_id = det.header.frame_id or msg.header.frame_id
+        detection = msg.detections[0]
+        frame_id = detection.header.frame_id or msg.header.frame_id
 
         if not frame_id:
             return
 
-        workspace = self._calc_workspace(det.bbox, frame_id)
+        workspace = self._calculate_workspace(detection.bbox, frame_id)
 
         if workspace is None:
             return
 
         self.is_grasp_cycle_active = True
         self.send_goal(workspace)
-    #end of detection_callback
+# endregion
 
-    def _calc_workspace(self, bbox, frame_id):
+# region Workspace calculation
+    def _calculate_workspace(self, bbox, frame_id):
         """Convert the bounding box from pixels to a workspace in the world frame."""
 
         # Data from yolo is in the camera_color_optical_frame (because of color image)
@@ -287,19 +251,19 @@ class GraspClient(Node):
         v_min = bbox.center.position.y - bbox.size_y / 2
         v_max = v_min + bbox.size_y
 
-        corners = np.array([[u_min, v_min], [u_min, v_max], [u_max, v_min], [u_max, v_max]])
+        pixel_corners = np.array([[u_min, v_min], [u_min, v_max], [u_max, v_min], [u_max, v_max]])
 
         # Getting normalized coordinates in the camera frame [x', y', 1] from pixel coordinates [u, v, 1]
         #       x' = (u - cx)/fx
         #       y' = (v - cy)/fy
-        x = (corners[:, 0] - self.cx) / self.fx
-        y = (corners[:, 1] - self.cy) / self.fy
+        x = (pixel_corners[:, 0] - self.cx) / self.fx
+        y = (pixel_corners[:, 1] - self.cy) / self.fy
         one = np.ones(4)
 
-        norm_coords = np.vstack((x, y, one))
+        normalized_coords = np.vstack((x, y, one))
 
         # Look up the camera-to-world transformation (T = [R t])
-        T = self._get_tf(self.world_frame, frame_id)
+        T = self._get_transform_matrix(self.world_frame, frame_id)
     
         if T is None:
             self.get_logger().debug('Transformation matrix T is empty.')
@@ -314,7 +278,7 @@ class GraspClient(Node):
         # The steepness of the ray (change of z_w per unit Z_c) is: z_dir = R_3 . [x', y', 1]
         #   If it is negative, it means the ray goes down.
         # Intersecting the ray with the table (z_w = z_min) gives the point we need.
-        z_dir = T[2, :3] @ norm_coords # T[2, :3] is the 3rd row of R: r31   r32   r33 
+        z_dir = T[2, :3] @ normalized_coords # T[2, :3] is the 3rd row of R: r31   r32   r33 
 
         if np.any(z_dir >= 0):
             self.get_logger().warning('Ray direction is not towards the table.')
@@ -358,7 +322,7 @@ class GraspClient(Node):
 
         # Multiply by Z_c to get the 3D points in the camera frame (P_c)
         # P_c = Z_c * [x', y', 1]
-        P_c = Z_c * norm_coords
+        P_c = Z_c * normalized_coords
         P_c_h = np.vstack((P_c, one))
 
         # Transforming the 3D points from the camera frame (camera_color_optical_frame) to the world frame (P_c -> P_w)
@@ -377,9 +341,8 @@ class GraspClient(Node):
         workspace = [x_world_min, x_world_max, y_world_min, y_world_max, z_world_min, z_world_max]
 
         return workspace
-    #end of _calc_workspace
 
-    def _get_tf(self, frame_to, frame_from):
+    def _get_transform_matrix(self, frame_to, frame_from):
         """Return the transformation matrix between frame_from and frame_to, or None if the lookup fails."""
 
         try:
@@ -405,33 +368,114 @@ class GraspClient(Node):
         except TransformException as ex:
             self.get_logger().warning(f'Could not transform {frame_from} to {frame_to}: {ex}',throttle_duration_sec=2.0)
             return None
-    #end of _get_tf
+# endregion
+    
+# region Action communication
+    def send_goal(self, workspace):
+        """ Wait for the action server to be available, then send a goal with the workspace to the server. """
 
-    def camera_info_callback(self, msg):
-        """Update the camera intrinsics from the first valid CameraInfo message."""
-        if self.has_valid_intrinsics:
+        goal_msg = SampleGraspPoses.Goal()
+        goal_msg.action_name =  'sample_grasp_poses'
+        goal_msg.workspace = workspace
+
+        self.get_logger().debug('Waiting for action server...')
+        self._action_client.wait_for_server()
+
+        # ◯★•✦.․✦•★◯
+        self.get_logger().info(f'<<<<<<<<<<< BEGIN <<<<<<<<<<<<<<<\n ◯★•✦.․✦•★◯ Sending goal request. ◯★•✦.․✦•★◯\n workspace = {workspace}')
+        self.cycle_id+=1
+
+        # Send goal asynchronously     
+        self._send_goal_future = self._action_client.send_goal_async(goal_msg, feedback_callback=self.feedback_callback)
+
+        self._send_goal_future.add_done_callback(self.goal_response_callback)
+
+    def goal_response_callback(self, future):
+        """Handle the server's response to the goal and request the result if it was accepted."""
+
+        goal_handle = future.result()
+        if not goal_handle.accepted:
+            self.get_logger().warning('Goal rejected :(')
+            self.is_grasp_cycle_active = False
             return
 
-        if msg.k[0] <= 0.0 or msg.k[4] <= 0.0:
-            self.get_logger().warning('Invalid camera info message received, waiting for next one...',throttle_duration_sec=2.0)
-            return
+        self.get_logger().info('Goal accepted, waiting for result :)')
         
-        # K camera intrinsic matrix: # camera focal length in pixel # optical center of the image in pixel
-        #   fx    0   cx
-        #    0   fy   cy
-        #    0    0   1
-        self.fx = msg.k[0]
-        self.fy = msg.k[4]
-        self.cx = msg.k[2]
-        self.cy = msg.k[5]
+        self._get_result_future = goal_handle.get_result_async()
+        self._get_result_future.add_done_callback(self.get_result_callback)
 
-        self.get_logger().info(f'Camera parameters updated: fx={self.fx}, fy={self.fy}, cx={self.cx}, cy={self.cy}')
-        
-        self.has_valid_intrinsics = True
-        self.destroy_subscription(self._cam_info_sub)  # Unsubscribe after receiving the first valid message
-    #end of camera_info_callback
+    def get_result_callback(self, future):
+        """ Process the action result: visualize the grasp candidates and execute the best one."""
+        try:
+            result = future.result().result
 
-    def move_to_grasppose(self,grasp_candidate):
+            self.get_logger().debug(message_to_yaml(result))
+
+            if not result.grasp_candidates:
+                self.get_logger().warning('No grasp candidates found.')
+                self._log_cycle_end("NO_GRASP")
+                return
+
+            self.publish_grasp_markers(result.grasp_candidates)
+
+            outcome = self.execute_grasp(result.grasp_candidates[0]) # Move to the first grasp candidate
+            if outcome == "OK":
+                self.successful_cycles += 1
+            self._log_cycle_end(outcome)
+        finally:
+            self.is_grasp_cycle_active = False       
+
+    def feedback_callback(self, feedback_msg):
+        """Log the feedback received from the action server."""
+        feedback = feedback_msg.feedback
+
+        self.get_logger().debug(message_to_yaml(feedback))
+# endregion
+
+# region Grasp visualization
+    def publish_grasp_markers(self, grasp_candidates):
+        """Clear the previous markers and publish the current grasp candidates for RViz."""
+
+        marker_array = MarkerArray()
+
+        # Clear previously published markers
+        delete_marker = Marker()
+        delete_marker.action = Marker.DELETEALL
+
+        marker_array.markers.append(delete_marker)
+
+        #Create a marker for each grasp candidate and add it to the marker array
+        for i in range(len(grasp_candidates)):
+            marker = self._create_grasp_marker(grasp_candidates[i], i)
+            marker_array.markers.append(marker)
+
+        self._grasp_marker_pub.publish(marker_array)  
+
+    def _create_grasp_marker(self, grasp_candidate, marker_id):
+        """Create a gripper mesh marker at the pose of a grasp candidate."""
+        marker = Marker()
+        marker.header.frame_id = grasp_candidate.header.frame_id
+        marker.header.stamp = self.get_clock().now().to_msg()
+        marker.ns = 'grasp_candidates'
+        marker.id = marker_id
+        marker.type = Marker.MESH_RESOURCE
+        marker.mesh_resource = "package://dgl_ros_pipeline/meshes/rg2_tool.stl"
+        marker.mesh_use_embedded_materials = False
+        marker.action = Marker.ADD
+        marker.pose = grasp_candidate.pose
+        marker.scale.x = marker.scale.y = marker.scale.z = 1.0
+
+        # Set marker color
+        marker.color.r = 0.922
+        marker.color.g = 0.114
+        marker.color.b = 0.596
+        marker.color.a = 1.0
+
+        return marker
+# endregion
+
+# region Grasp execution
+    def execute_grasp(self,grasp_candidate):
         """Execute the grasp sequence (open, pregrasp, grasp, close) and return the outcome string."""
 
         test_pose = PoseStamped()
@@ -444,25 +488,25 @@ class GraspClient(Node):
         self._target_pose_pub.publish(grasp_candidate)
 
         self.get_logger().info("1. Opening gripper before moving the arm.")
-        gripper_status = self._move_gripper("open") # Open the gripper before moving to the grasp pose
+        open_status = self._move_gripper("open") # Open the gripper before moving to the grasp pose
 
-        if not gripper_status:
+        if not open_status:
             self.get_logger().warning("✖ ✖ ✖ Opening gripper failed. ✖ ✖ ✖\n<<<<<<<<<<<< END <<<<<<<<<<<<<<<<")
             # return False
             return "GRIPPER_OPEN"
         
         self.get_logger().info("2. Moving arm close to the grasp pose.")
-        arm_status = self._move_arm(grasp_candidate, "pregrasp_frame") # Move the end of the tcp to the target pose
+        pregrasp_status = self._move_arm(grasp_candidate, "pregrasp_frame") # Move the end of the tcp to the target pose
 
-        if not arm_status:
+        if not pregrasp_status:
             self.get_logger().warning("✖ ✖ ✖ Moving arm to grasp pose failed. ✖ ✖ ✖\n<<<<<<<<<<<< END <<<<<<<<<<<<<<<<")
             # return False
             return "ARM_PREGRASP"
 
         self.get_logger().info("3. Moving gripper to the grasp pose.")
-        grasping_status = self._move_arm(grasp_candidate, "grasp_frame") # Move the hand of the robot to the grasping pose
+        grasp_status = self._move_arm(grasp_candidate, "grasp_frame") # Move the hand of the robot to the grasping pose
 
-        if not grasping_status:
+        if not grasp_status:
             self.get_logger().warning("✖ ✖ ✖ Moving gripper to grasp pose failed. ✖ ✖ ✖\n<<<<<<<<<<<< END <<<<<<<<<<<<<<<<")
             #return False
             return "ARM_GRASP"
@@ -470,9 +514,9 @@ class GraspClient(Node):
         self.is_motion_phase_active = True  # Set the flag to indicate that MoveIt execution has started
 
         self.get_logger().info("4. Closing gripper around object.")
-        gripper_status = self._move_gripper("closed")
+        close_status = self._move_gripper("closed")
 
-        if not gripper_status:
+        if not close_status:
             self.get_logger().warning("✖ ✖ ✖ Closing gripper failed. ✖ ✖ ✖\n<<<<<<<<<<<< END <<<<<<<<<<<<<<<<")
             # return False
             return "GRIPPER_CLOSE"
@@ -480,13 +524,12 @@ class GraspClient(Node):
         self.get_logger().info("◯ ◯ ◯ Grasping sequence completed successfully. ◯ ◯ ◯\n<<<<<<<<<<<< END <<<<<<<<<<<<<<<<")
         # return True
         return "OK"
-    #end of move_to_grasppose
 
-    def _move_arm(self, pose, pose_link):
+    def _move_arm(self, target_pose, pose_link):
         """Plan and execute an arm motion that moves pose_link to the given pose."""
 
         self.robot_arm.set_start_state_to_current_state()
-        self.robot_arm.set_goal_state(pose_stamped_msg=pose, pose_link=pose_link)
+        self.robot_arm.set_goal_state(pose_stamped_msg=target_pose, pose_link=pose_link)
 
         plan_result = self.robot_arm.plan()
 
@@ -501,7 +544,6 @@ class GraspClient(Node):
         else:
             self.get_logger().warning("Arm planning failed.")
             return None
-    #end of _move_arm
 
     def _move_gripper(self, state):
         """Plan and execute a gripper motion to the given state ('open' or 'closed')."""
@@ -522,55 +564,17 @@ class GraspClient(Node):
         else:
             self.get_logger().warning("Gripper planning failed.")
             return None
-    #end of _move_gripper
-
-    def _add_collision_object(self):
-        """Add the table as a collision object to the planning scene."""
-
-        with self.psm.read_write() as scene:
-            collision_object = CollisionObject()
-            collision_object.header.frame_id = "world"
-            collision_object.id = "table"
-
-            box_pose = Pose()
-            x, y, z = self.table_pos
-            box_pose.position = Point(x=x, y=y, z=z)
-            box_pose.orientation.x = 0.0
-            box_pose.orientation.y = 0.0
-            box_pose.orientation.z = 0.0
-            box_pose.orientation.w = 1.0
-
-            box = SolidPrimitive()
-            box.type = SolidPrimitive.BOX
-            box.dimensions = self.table_dim
-
-            collision_object.primitives.append(box)
-            collision_object.primitive_poses.append(box_pose)
-            collision_object.operation = CollisionObject.ADD
-
-            scene.apply_collision_object(collision_object)
-            scene.current_state.update()  # Important to ensure the scene is updated
-                  
-        self._collision_obj_pub.publish(collision_object)
-    #end of _add_collision_object
-
-    def _log_cycle_end(self, outcome):
-        """Write the cycle ID and outcome to the log file if file logging is enabled."""
-
-        if self.file_logger:
-            self._file_logger.info(f'{self.cycle_id},cycle_end,,{outcome}')
-    #end of _log_cycle_end
+# endregion
 
 def main(args=None):
     try:
         with rclpy.init(args=args):
             # instance of our GraspClient node
-            action_client = GraspClient()
+            grasp_client = GraspClient()
 
-            rclpy.spin(action_client)
+            rclpy.spin(grasp_client)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
-
 
 if __name__ == '__main__':
     main()
