@@ -21,85 +21,83 @@ from moveit_msgs.msg import CollisionObject
 from shape_msgs.msg import SolidPrimitive
 
 class GraspClient(Node):
+    """Initialize the grasp client, communication interfaces and MoveItPy."""
 
     def __init__(self):
         """Set up the action client, publishers, subscribers, TF listener, parameters and MoveItPy."""
         
-        # The class is initialized by calling the Node constructor, naming our node grasp_client:
         super().__init__('grasp_client')
+        # Declare ROS 2 parameters
+        self.declare_parameters(
+            namespace='',
+            parameters=[
+                ('world_frame', 'world'),
+                ('z_min', 0.005),
+                ('z_max', 0.3),
+                ('margin', 0.05),
+                ('table_pos', [0.37, 0.0, -0.05]),
+                ('table_dim', [0.7, 1.0, 0.1]),
+                ('moveit_config_json', ''),
+                ('file_logger', False),
+                ('file_logger_dir_path', '/workspaces/vision-based-rgp-devcontainer/src/dgl_ros/dgl_ros_pipeline/logfiles'),
+            ]
+        )
 
-        # Creating an action client that will send goals to the SampleGraspPoses action server.
-        # Three arguments:
-        #   1. A ROS 2 node to add the action client to: self (aka. GraspClient)
-        #   2. The type of the action: SampleGraspPoses
-        #   3. The action name: 'sample_grasp_poses'
-        self._action_client = ActionClient(self, SampleGraspPoses, 'sample_grasp_poses')
+        # Read parameter values
+        self.world_frame = self.get_parameter('world_frame').value
+        self.z_min = self.get_parameter('z_min').value
+        self.z_max = self.get_parameter('z_max').value
+        self.margin = self.get_parameter('margin').value
+        self.table_pos = self.get_parameter('table_pos').value
+        self.table_dim = self.get_parameter('table_dim').value
+        config_json = self.get_parameter("moveit_config_json").value
+        self.file_logger = self.get_parameter('file_logger').value
+        log_dir = Path( self.get_parameter('file_logger_dir_path').value)
 
-        # PUBLISHERS
-        # visualization markers
-        self._marker_pub = self.create_publisher(MarkerArray, 'grasp_markers', 10)
-
-        # target pose for the robot to move to
-        self._target_pose_pub = self.create_publisher(PoseStamped, 'target_pose', 10)
-
-        # collision object
-        self._collision_obj_pub= self.create_publisher(CollisionObject, '/collision_object', 10)
-
-        # SUBSCRIBERS
-        # YOLO detection messages (Detection2DArray)
-        self._det_sub = self.create_subscription(Detection2DArray, 'detections', self.detection_callback, 10)
-
-        # camera info messages (CameraInfo)
-        self._cam_info_sub = self.create_subscription(CameraInfo, '/camera/camera/color/camera_info', self.camera_info_callback, 10)
-
-        # camera_color-optical_frame to world transform (tf)
-        self.tf_buffer = Buffer()
-        self.tf_listener = TransformListener(self.tf_buffer, self)
-
-        # Camera parameters, updated from the CameraInfo message (/camera/camera/color/camera_info)
-        # camera focal length in pixel
+        # Initialize camera intrinsics: updated from the CameraInfo message (/camera/camera/color/camera_info)
         self.fx = None
         self.fy = None
-        # self.fx = 922.5073852539062
-        # self.fy = 920.6383056640625
-        # optical center of the image in pixel
         self.cx = None
         self.cy = None
-        # self.cx = 645.260498046875 
-        # self.cy = 354.32769775390625
 
-        # Parameters:
-        # Workspace boundaries on Z-axis in meter
-        self.declare_parameter('z_min', 0.005) # just above the table
-        self.z_min = self.get_parameter('z_min').value
-        self.declare_parameter('z_max', 0.3) # the highest expected object
-        self.z_max = self.get_parameter('z_max').value
-
-        # Margin to add to calculated workspace
-        self.declare_parameter('margin', 0.05) # 5 cm
-        self.margin = self.get_parameter('margin').value
-
-        # Flags:
+        # Initialize state flags:
         self.is_grasp_cycle_active = False # an action is running or not
         self.has_valid_intrinsics = False # successful camera parameter update
         self.is_motion_phase_active = False # motion phase started or not
 
-        # Frames:
-        self.declare_parameter('world_frame', 'world')
-        self.world_frame = self.get_parameter('world_frame').value
+        # Initialize grasp cycle counters
+        self.cycle_id = 0
+        self.success = 0        
 
-        # MoveIt parameters:
-        self.declare_parameter('table_pos', [0.37, 0.0, -0.05])
-        self.table_pos = self.get_parameter('table_pos').value
+        # Initialize TF buffer and listener
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
 
-        self.declare_parameter('table_dim', [0.7, 1.0, 0.1])
-        self.table_dim = self.get_parameter('table_dim').value
+        # Initialize action client
+        #   Three arguments:
+        #       1. A ROS 2 node to add the action client to: self (aka. GraspClient)
+        #       2. The type of the action: SampleGraspPoses
+        #       3. The action name: 'sample_grasp_poses'
+        self._action_client = ActionClient(self, SampleGraspPoses, 'sample_grasp_poses')
 
-        self.declare_parameter("moveit_config_json", "")
-        config_json = self.get_parameter("moveit_config_json").value
+        # Initialize subscribers and publishers
+        self._det_sub = self.create_subscription(
+            Detection2DArray, 'detections', self.detection_callback, 10)
+        self._cam_info_sub = self.create_subscription(
+            CameraInfo, '/camera/camera/color/camera_info', self.camera_info_callback, 10)
+        
+        self._marker_pub = self.create_publisher(
+            MarkerArray, 'grasp_markers', 10)
+        self._target_pose_pub = self.create_publisher(
+            PoseStamped, 'target_pose', 10)
+        self._collision_obj_pub= self.create_publisher(
+            CollisionObject, '/collision_object', 10)
 
+        # Initialize MoveItPy
         if not config_json:
             raise RuntimeError("Missing MoveItPy configuration.")
+
+        self.get_logger().info('Initializing MoveItPy...')
 
         self.moveit = MoveItPy(
             node_name="grasp_planner",
@@ -111,31 +109,41 @@ class GraspClient(Node):
         
         self.get_logger().info("MoveItPy instance created")
 
-        # psm: planning_scene_monitor
+        # Initialize planning scene monitor (psm)
         self.psm =self.moveit.get_planning_scene_monitor()
         self.psm.start_scene_monitor("/planning_scene")
         self.psm.start_state_monitor("/joint_states", "/attached_collision_object")
+
+        # Add table to the planning scene
         self._add_collision_object()
-
-        # Numbers to measure the success rate of grasping attempts
-        self.cycle_id = 0
-        self.success = 0
-
-        # File logger setup
-        self.declare_parameter('file_logger', False)
-        self.declare_parameter('file_logger_dir_path', '/workspaces/vision-based-rgp-devcontainer/src/dgl_ros/dgl_ros_pipeline/logfiles')
-        self.file_logger = self.get_parameter('file_logger').value
-
+        
+        # Configure file logger
         if self.file_logger:
-            log_dir = Path( self.get_parameter('file_logger_dir_path').value)
+            log_dir.mkdir(parents=True, exist_ok=True)
             stamp = datetime.now().strftime('%Y%m%d_%H%M%S')
 
             self._file_logger = logging.getLogger(f'{self.get_name()}_file')
             self._file_logger.setLevel(logging.INFO)
             self._file_logger.propagate = False
+
             handler = logging.FileHandler(log_dir / f'grasp_client_{stamp}.log', encoding='utf-8')
             handler.setFormatter(logging.Formatter('%(asctime)s.%(msecs)03d,%(message)s', '%Y-%m-%d %H:%M:%S'))
             self._file_logger.addHandler(handler)
+
+        # Log node configuration
+        self.get_logger().info(
+            f'Grasp client initialized :)\n'
+            f'  World frame:        {self.world_frame}\n'
+            f'  Workspace z min:    {self.z_min} m\n'
+            f'  Workspace z max:    {self.z_max} m\n'
+            f'  Workspace margin:   {self.margin} m\n'
+            f'  Table position:     {self.table_pos}\n'
+            f'  Table dimensions:   {self.table_dim}\n'
+            f'  File logging:       {self.file_logger}\n'
+            f'  Detections topic:   {self._det_sub.topic_name}\n'
+            f'  Camera info topic:  {self._cam_info_sub.topic_name}\n'
+            f'  Grasp markers:      {self._marker_pub.topic_name}'
+        )
     #end of __init__
 
     def send_goal(self, workspace):
@@ -152,7 +160,7 @@ class GraspClient(Node):
         self.get_logger().info(f'<<<<<<<<<<< BEGIN <<<<<<<<<<<<<<<\n ◯★•✦.․✦•★◯ Sending goal request. ◯★•✦.․✦•★◯\n workspace = {workspace}')
         self.cycle_id+=1
 
-        # Async callback      
+        # Send goal asynchronously     
         self._send_goal_future = self._action_client.send_goal_async(goal_msg, feedback_callback=self.feedback_callback)
 
         self._send_goal_future.add_done_callback(self.goal_response_callback)
@@ -216,7 +224,7 @@ class GraspClient(Node):
         marker.pose = grasp_candidate.pose
         marker.scale.x = marker.scale.y = marker.scale.z = 1.0
 
-        # Set the color
+        # Set marker color
         marker.color.r = 0.922
         marker.color.g = 0.114
         marker.color.b = 0.596
@@ -230,7 +238,7 @@ class GraspClient(Node):
 
         marker_array = MarkerArray()
 
-        #Delete any remaining markers from previous grasps
+        # Clear previously published markers
         delete_marker = Marker()
         delete_marker.action = Marker.DELETEALL
 
@@ -250,7 +258,7 @@ class GraspClient(Node):
         if self.is_grasp_cycle_active or self.is_motion_phase_active or not self.has_valid_intrinsics:
             return
 
-        # Check if there is a message
+        # Ignore empty detection arrays
         if not msg.detections:
             return
     
@@ -290,7 +298,7 @@ class GraspClient(Node):
 
         norm_coords = np.vstack((x, y, one))
 
-        # Getting the T transformation matrix (T = [R t])
+        # Look up the camera-to-world transformation (T = [R t])
         T = self._get_tf(self.world_frame, frame_id)
     
         if T is None:
@@ -385,7 +393,7 @@ class GraspClient(Node):
             t = tf.transform.translation # translation
             q = tf.transform.rotation # rotation as quaternions
 
-            # Build T from the t and q
+            # Construct the homogeneous transformation matrix
             T = np.eye(4)
             T[:3, :3] = Rotation.from_quat([q.x, q.y, q.z, q.w]).as_matrix()
             T[:3, 3] = [t.x, t.y, t.z]
@@ -408,7 +416,7 @@ class GraspClient(Node):
             self.get_logger().warning('Invalid camera info message received, waiting for next one...',throttle_duration_sec=2.0)
             return
         
-        # K camera intrinsic matrix:
+        # K camera intrinsic matrix: # camera focal length in pixel # optical center of the image in pixel
         #   fx    0   cx
         #    0   fy   cy
         #    0    0   1
