@@ -13,27 +13,27 @@ from vision_msgs.msg import Detection2D, Detection2DArray, ObjectHypothesisWithP
 from rclpy.qos import qos_profile_sensor_data # qos_profile_sensor_data: Quality of Service (QoS) profile
 
 class ObjectDetector(Node):
+    """Detect objects with YOLO on the color image and publish them as Detection2DArray."""
 
     def __init__(self):
+        """Load the YOLO model and set up the parameters, subscriber, publishers and file logger."""
+
         super().__init__('object_detector')
         self._bridge = cv_bridge.CvBridge()
 
         self._colors = Colors()  # For consistent colors across runs
         
-        # Loading YOLO model:
-        #   Objects 365 data set: yolo26m-objv1-150.pt
-        #   COCO data set: yolo26m.pt
-        #   World model: yolov8s-world.pt
+        # Load the YOLO model:
         self.declare_parameter('model', 'yolo26m-objv1-150.pt')
         model_name = self.get_parameter('model').value
         self._model = YOLO(model_name)
 
-        # In case of the world-model the class set:
+        # Class prompts, only used with a YOLO-World model
         self.declare_parameter('classes', ["cardboard box", "battery", "bottle", "rod","mug"])
         if '-world' in model_name:
             self._model.set_classes(self.get_parameter('classes').value)
 
-        # Confidence of the detection
+        # Detection confidence threshold
         self.declare_parameter('conf', 0.6)
         self.conf = self.get_parameter('conf').value
 
@@ -41,25 +41,25 @@ class ObjectDetector(Node):
         self.declare_parameter('device', "cuda:0")
         self.device = self.get_parameter('device').value
 
-        # Size of the crop:
+        # Crop area in pixels: x1, y1, x2, y2
         self.declare_parameter('crop', [440, 20, 1090, 720])
         self.crop_x1, self.crop_y1, self.crop_x2, self.crop_y2 = self.get_parameter('crop').value
 
-        # Flag to enable/disable cropping:
+        # Enable image cropping
         self.declare_parameter('cropping', False)
         self.cropping = self.get_parameter('cropping').value
         self.get_logger().info(f'Using cropped image: {self.cropping}')
 
-        # Area of image to look for bounding boxes
+        # Allowed bbox center area as fraction of image size: x_min, x_max, y_min, y_max
         self.declare_parameter('limits', [0.25, 0.75, 0.25, 0.75])
         self.x_limit_low, self.x_limit_high, self.y_limit_low,  self.y_limit_high = self.get_parameter('limits').value
 
-        # Flag to enable/disable limits:
+        # Enable bounding box position filtering
         self.declare_parameter('use_limit', False)
         self.use_limit = self.get_parameter('use_limit').value
         self.get_logger().info(f'Filtering bounding box position: {self.use_limit}')
     
-        # Flag to enable/disable yolo usage:
+        # Enable YOLO-based detection
         self.declare_parameter('use_yolo', False)
         self.use_yolo = self.get_parameter('use_yolo').value
         self.get_logger().info(f'Using YOLO: {self.use_yolo}')
@@ -89,16 +89,11 @@ class ObjectDetector(Node):
             handler = logging.FileHandler(log_dir / f'object_detector_{yolo}_{stamp}.log', encoding='utf-8')
             handler.setFormatter(logging.Formatter('%(asctime)s.%(msecs)03d,%(message)s', '%Y-%m-%d %H:%M:%S'))
             self._file_logger.addHandler(handler)
-            logging.basicConfig(
-                filename=log_dir / f'object_detector_{yolo}_{stamp}.log',
-                format='%(asctime)s.%(msecs)03d,%(message)s',
-                datefmt='%Y-%m-%d %H:%M:%S',
-                encoding='utf-8',
-                level=logging.INFO,
-            )
     #end of __init__
 
     def image_callback(self, msg):
+        """Run detection on the incoming image and publish the detections and the annotated image."""
+
         try:
             # Convert ROS Image to OpenCV format
             image = self._bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
@@ -112,6 +107,7 @@ class ObjectDetector(Node):
             width = image.shape[1]
             height = image.shape[0]
 
+            # Generate a fixed central bounding box when YOLO is disabled    
             if not self.use_yolo:
                 detection = Detection2D()
                 detection.header = msg.header
@@ -128,10 +124,12 @@ class ObjectDetector(Node):
                 # Annotate the image with bounding boxes and class labels with confidence score
                 annotator = Annotator(image, line_width=3)
                 color = self._colors(0, True)
-
                 annotator.box_label((width / 2.0 - detection.bbox.size_x / 2.0, height / 2.0 - detection.bbox.size_y / 2.0, width / 2.0 + detection.bbox.size_x / 2.0, height / 2.0 + detection.bbox.size_y / 2.0), "", color)
+                
                 image2 = annotator.result()
-                self._annotated_img_pub.publish(self._bridge.cv2_to_imgmsg(image2, encoding="bgr8"))
+                annotated_img = self._bridge.cv2_to_imgmsg(image2, encoding="bgr8")
+                annotated_img.header = msg.header
+                self._annotated_img_pub.publish(annotated_img)
                 return
             else:
                 # Run YOLO model on the converted image
@@ -153,10 +151,10 @@ class ObjectDetector(Node):
 
                     if self.cropping:
                         # Adjust bounding box coordinates to the original image if cropped image used
-                        x1 = x1 + self.crop_x1
-                        y1 = y1 + self.crop_y1
-                        x2 = x2 + self.crop_x1
-                        y2 = y2 + self.crop_y1
+                        x1 += self.crop_x1
+                        y1 += self.crop_y1
+                        x2 += self.crop_x1
+                        y2 += self.crop_y1
 
                     # Set bounding box center and size (vision_msgs BoundingBox2D uses Pose2D for center (nested!))
                     detection.bbox.center.position.x = float((x1 + x2) / 2)
@@ -167,7 +165,7 @@ class ObjectDetector(Node):
                         if not (self.x_limit_low * width <= detection.bbox.center.position.x <= self.x_limit_high * width and self.y_limit_low * height <= detection.bbox.center.position.y <= self.y_limit_high * height):
                             continue
 
-                    detection.bbox.center.theta = 0.0 # no rotation for 2D detection
+                    detection.bbox.center.theta = 0.0 # Axis-aligned bounding box (no rotation for 2D objects)
                     detection.bbox.size_x = float(x2 - x1)
                     detection.bbox.size_y = float(y2 - y1)
 
@@ -202,7 +200,7 @@ class ObjectDetector(Node):
                 annotated_img.header = msg.header
                 self._annotated_img_pub.publish(annotated_img)
 
-                # Logging yolo runtimes
+                # Log total YOLO processing time in milliseconds
                 if self.file_logger:
                     self._file_logger.info(sum(result.speed.values()))
         

@@ -7,33 +7,33 @@ camera_base_tf:
   ros__parameters:
     # 5G lab: x 0.0, y 0.0, z 1.95, roll 0.0, pitch 1.5707963, yaw 0.0
     # Other camera:
-    x: 0.0
-    y: 0.0
-    z: 0.69 # camera height above the table
-    roll: 0.02 # around the x-axis
-    pitch: 1.2 # around the y-axis
-    yaw: 0.0 # around the z-axis
+    x: 0.0                          # [m]       
+    y: 0.0                          # [m]  
+    z: 0.69                         # camera height above the table [m]
+    roll: 0.02                      # rotation around the x-axis [rad]
+    pitch: 1.2                      # rotation around the y-axis [rad]
+    yaw: 0.0                        # rotation around the z-axis [rad]
 
 grasp_client:
   ros__parameters:
-    z_min: -0.03 # just above the table -0.02
-    z_max: 0.2 # the highest expected object
-    margin: 0.05
-    table_pos: [0.37, 0.0, -0.05] # box center in world frame [m]
-    table_dim: [0.7, 1.0, 0.1] # box size x, y, z [m]
-    file_logger: True # Set to True to log runtime data
+    z_min: -0.03                    # lower workspace boundary along world z [m]
+    z_max: 0.2                      # lower workspace boundary along world z [m] (height of the tallest expected object)
+    margin: 0.05                    # extra space added around the projected bbox in x and y [m]
+    table_pos: [0.37, 0.0, -0.05]   # table collision box center in world frame [m]
+    table_dim: [0.7, 1.0, 0.1]      # table collision box dimensions: x, y, z [m]
+    file_logger: True               # enable runtime logging to file
 
 object_detector:
   ros__parameters:
-    cropping: False
-    crop: [0, 0, 450, 720] # x1, y1, x2, y2, (left -> right, top ->bottom)
-    # Options: yolo26m-objv1-150.pt (Objects365), yolo26m.pt (COCO), yolov8s-world.pt (World)
-    model: yolo26m-objv1-150.pt
-    # Only used with a -world model
+    model: yolo26m-objv1-150.pt     # yolo26m-objv1-150.pt (Objects365), yolo26m.pt (COCO), yolov8s-world.pt (World)   
+    # class prompts, only used with a YOLO-World model
     classes: ["cardboard box", "battery", "bottle", "rod", "mug"]
-    conf: 0.45 # detection confidence threshold (0..1)
-    limits: [0.0, 0.75, 0.0, 1.0]
-    device: "cuda:0" # or "cpu"
-    use_yolo: True # if True, uses YOLO for object detection; if False, uses GPD for grasp detection
-    use_limit: False # if you want to filter where the bounding box should be on the image
-    file_logger: True # Set to True to log yolo runtime data
+    
+    conf: 0.45                      # detection confidence threshold (0..1)
+    device: "cuda:0"                # device to run YOLO on: "cuda:0" (GPU) or "cpu"
+    use_yolo: True                  # False: publish a fixed bbox at the image center (for testing)
+    cropping: False                 # enable image cropping before detection
+    crop: [0, 0, 450, 720]          # crop boundaries in pixels: x1, y1, x2, y2 (left -> right, top -> bottom)
+    use_limit: False                # enable bbox center position filtering: drop detections whose bbox center is outside limits
+    limits: [0.0, 0.75, 0.0, 1.0]   # x_min, x_max, y_min, y_max as fraction of image size (0..1)
+    file_logger: True               # enable YOLO runtime logging to file
