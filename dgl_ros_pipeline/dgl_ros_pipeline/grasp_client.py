@@ -19,11 +19,14 @@ from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion
 from moveit_msgs.msg import CollisionObject
 from shape_msgs.msg import SolidPrimitive
 from time import perf_counter
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 
 @dataclass
 class CycleMetrics:
     """Store measurement data for a single grasp cycle."""
+    cycle_ms: float | None  = None
+    outcome: str | None  = None
+
     workspace_volume_m3: float | None  = None
     workspace_ms: float | None  = None
 
@@ -44,10 +47,6 @@ class CycleMetrics:
 
     lift_planning_ms: float | None  = None
     lift_execution_ms: float | None  = None
-
-    cycle_ms: float | None  = None
-    outcome: str | None  = None
-
 
 class GraspClient(Node):
     """Coordinate workspace calculation, grasp pose estimation and grasp execution."""
@@ -134,7 +133,7 @@ class GraspClient(Node):
             
         # Log node configuration
         self.get_logger().info(
-            f'Grasp client initialized :)\n'
+            f' Grasp client initialized :)\n'
             f'  World frame:        {self.world_frame}\n'
             f'  Workspace z min:    {self.z_min} m\n'
             f'  Workspace z max:    {self.z_max} m\n'
@@ -211,17 +210,24 @@ class GraspClient(Node):
         self._file_logger.setLevel(logging.INFO)
         self._file_logger.propagate = False
 
-        handler = logging.FileHandler(log_dir / f'grasp_client_{self.experiment_id}.log', encoding='utf-8')
-        handler.setFormatter(logging.Formatter('%(asctime)s.%(msecs)03d,%(message)s', '%Y-%m-%d %H:%M:%S'))
+        handler = logging.FileHandler(log_dir / f'grasp_client_{self.experiment_id}.csv', encoding='utf-8')
         self._file_logger.addHandler(handler)
+       
+        field_names = ','.join(asdict(self.metrics).keys())
+        header = f"timestamp,cycle_id,{field_names}"
 
-    def _log_cycle_end(self, outcome):
-        """Write the cycle ID and outcome to the log file if file logging is enabled."""
+        self._file_logger.info(header)
+
+        handler.setFormatter(logging.Formatter('%(asctime)s.%(msecs)03d,%(message)s', '%Y-%m-%d %H:%M:%S'))
+
+    def _log_cycle_end(self):
+        """Log the measurement data of the completed grasp cycle."""
         # TODO: evaluate_results.py script!
         if self.enable_file_logging:
-            # timestamp, cycle_id, event, unused, outcome
-            # 2026-11-24 20:15:30.123,1,cycle_end,,OK
-            self._file_logger.info(f'{self.cycle_id},cycle_end,,{outcome}')
+            metrics = ','.join(map(str, asdict(self.metrics).values()))
+            log_msg = f"{self.cycle_id},{metrics}"
+            
+            self._file_logger.info(log_msg)
 
     def _elapsed_ms (self, start_time:float) -> float:
         """Returns the elapsed time in milliseconds."""
@@ -450,15 +456,16 @@ class GraspClient(Node):
 
             if not result.grasp_candidates:
                 self.get_logger().warning('No grasp candidates found.')
-                self._log_cycle_end("NO_GRASP")
+                self.metrics.outcome = "NO_GRASP"
+                self._log_cycle_end()
                 return
 
             self.publish_grasp_markers(result.grasp_candidates)
 
-            outcome = self.execute_grasp(result.grasp_candidates[0]) # Move to the first grasp candidate
-            if outcome == "OK":
+            self.metrics.outcome = self.execute_grasp(result.grasp_candidates[0]) # Move to the first grasp candidate
+            if self.metrics.outcome == "OK":
                 self.successful_cycles += 1
-            self._log_cycle_end(outcome)
+            self._log_cycle_end()
         finally:
             self.is_grasp_cycle_active = False       
 

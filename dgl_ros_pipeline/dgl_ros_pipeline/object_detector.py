@@ -100,9 +100,12 @@ class ObjectDetector(Node):
         self._file_logger = logging.getLogger(f'{self.get_name()}_file')
         self._file_logger.setLevel(logging.INFO)
         self._file_logger.propagate = False
-        handler = logging.FileHandler(log_dir / f'object_detector_{model_name}_{self.experiment_id}.log', encoding='utf-8')
-        handler.setFormatter(logging.Formatter('%(asctime)s.%(msecs)03d,%(message)s', '%Y-%m-%d %H:%M:%S'))
+        handler = logging.FileHandler(log_dir / f'object_detector_{model_name}_{self.experiment_id}.csv', encoding='utf-8')
         self._file_logger.addHandler(handler)
+        
+        self._file_logger.info("timestamp,yolo_processing_ms") #log the header once
+
+        handler.setFormatter(logging.Formatter('%(asctime)s.%(msecs)03d,%(message)s', '%Y-%m-%d %H:%M:%S'))
 
     def image_callback(self, msg):
         """Run detection on the incoming image and publish the detections and the annotated image."""
@@ -194,7 +197,7 @@ class ObjectDetector(Node):
                     detection.results.append(hypothesis)
                     detection_array.detections.append(detection)  
 
-                # Log YOLO processing time [ms]
+                # Log YOLO processing time [ms] (yolo_processing_ms)
                 if self.enable_file_logging:
                     self._file_logger.info(sum(result.speed.values()))
                 
