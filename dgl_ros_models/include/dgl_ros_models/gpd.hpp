@@ -11,6 +11,9 @@
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <gpd/grasp_detector.h>
 #include <dgl_ros/util/tf.hpp>
+// my code
+#include <fstream>
+#include <string>
 
 namespace dgl_models
 {
@@ -35,5 +38,8 @@ private:
   std::unique_ptr<gpd::GraspDetector> gpd_grasp_detector_;
   Eigen::Isometry3d tf_world_src_;
   std::unique_ptr<dgl::util::TransformLookup> tf_lookup_;
+  
+  // my code
+  std::ofstream metrics_file_; // to log data to csv
 };
 }  // namespace dgl_models

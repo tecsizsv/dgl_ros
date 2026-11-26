@@ -10,6 +10,10 @@
 #include <pcl/filters/crop_box.h>
 #include <pcl/common/transforms.h>
 #include <pcl/common/common.h>
+//my code:
+#include <chrono>
+#include <filesystem>
+#include <fstream>
 
 using dgl_ros_interfaces::action::SampleGraspPoses;
 using sensor_msgs::msg::PointCloud2;
@@ -34,6 +38,21 @@ Gpd::Gpd(rclcpp::NodeOptions& options) : GpdAgent(options)
     this->get_parameter("src_frame0").as_string(),
     this->get_parameter("tf_timeout_seconds").as_int(),
     tf_world_src_);
+
+    //my code: Configure file logging
+    this->declare_parameter("enable_file_logging", false);
+    this->declare_parameter("log_dir", "");
+    this->declare_parameter("experiment_id", "");
+    bool enable_file_logging = this->get_parameter("enable_file_logging").as_bool();
+    auto log_dir = std::filesystem::path(this->get_parameter("log_dir").as_string()) / "grasp_server";
+    auto experiment_id = this->get_parameter("experiment_id").as_string();
+
+    if (enable_file_logging){
+      std::filesystem::create_directories(log_dir);
+      auto file_path = log_dir / ("grasp_server_" + experiment_id + ".csv");
+      metrics_file_.open(file_path);
+      metrics_file_ << "timestamp_ns,cloud_point_count,cropped_point_count,gpd_ms\n";
+    }
 }
 
 SampleGraspPoses::Result::SharedPtr Gpd::actionFromObs(std::shared_ptr<GpdObserver> observer, GoalSharedPtr goal)
@@ -54,6 +73,9 @@ SampleGraspPoses::Result::SharedPtr Gpd::actionFromObs(std::shared_ptr<GpdObserv
   // Convert to RGBA for cropping and GPD
   auto grasp_cloud = std::make_shared<PointCloudRGBA>();
   pcl::copyPointCloud(cloud, *grasp_cloud);
+
+  //my code: saving original pointcloud size
+  const auto cloud_point_count = grasp_cloud->size();
 
   if(workspace.size() == 6)
   {
@@ -104,6 +126,13 @@ SampleGraspPoses::Result::SharedPtr Gpd::actionFromObs(std::shared_ptr<GpdObserv
     if(grasp_cloud->empty())
     {
       RCLCPP_WARN(this->get_logger(), "No points left after cropping to workspace, skipping grasp detection.");
+
+      //my code: Log metrics to file
+      if (metrics_file_.is_open())
+      {
+        metrics_file_ << now().nanoseconds() << "," << cloud_point_count << ",0,None" << std::endl;
+      }
+
       return std::make_shared<SampleGraspPoses::Result>();
     }
   }
@@ -112,17 +141,24 @@ SampleGraspPoses::Result::SharedPtr Gpd::actionFromObs(std::shared_ptr<GpdObserv
     RCLCPP_WARN_STREAM(this->get_logger(), "Workspace has " << workspace.size() << " values, expected 6. Skipping crop."); 
   }
 
+  const auto cropped_point_count = grasp_cloud->size(); //my code: cropped point cloud
+
   // Convert to GPD.
   RCLCPP_INFO(this->get_logger(), "Preprocess pointcloud...");
   Eigen::Matrix3Xd camera_view_point(3, 1);
   gpd::util::Cloud gpd_cloud(grasp_cloud, 0, camera_view_point);
+
+  auto gpd_start = std::chrono::steady_clock::now(); //my code: timestamp when gpd starts
+
   gpd_grasp_detector_->preprocessPointCloud(gpd_cloud);
 
   // Detect grasps
   RCLCPP_INFO(this->get_logger(), "Starting grasp detection...");
   std::vector<std::unique_ptr<gpd::candidate::Hand>> grasps;  
   grasps = gpd_grasp_detector_->detectGrasps(gpd_cloud);  // detect grasp poses in the point cloud
-  
+
+  double gpd_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - gpd_start).count(); //my code: gpd estimation time
+
   std::vector<unsigned int> grasp_ids;
   for (unsigned int i = 0; i < grasps.size(); i++)
   {
@@ -160,7 +196,14 @@ SampleGraspPoses::Result::SharedPtr Gpd::actionFromObs(std::shared_ptr<GpdObserv
     result->costs.emplace_back(static_cast<double>(1.0 / grasps.at(id)->getScore()));
   }
 
-  RCLCPP_INFO(this->get_logger(), "Finalizing grasp detection.");
+  RCLCPP_INFO(this->get_logger(), "Log grasp detection metrics and send result.");
+
+  //my code: Log metrics to file
+  if (metrics_file_.is_open())
+  {
+    metrics_file_ << now().nanoseconds() << "," << cloud_point_count << ","<< cropped_point_count << ","<< gpd_ms << std::endl;
+  }
+
   return result;
 }
 

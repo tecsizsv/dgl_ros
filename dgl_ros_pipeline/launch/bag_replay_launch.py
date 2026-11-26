@@ -115,13 +115,16 @@ def generate_launch_description():
     grasp_server = Node(
         package="dgl_ros_models",
         executable="gpd",
-        parameters=[{
+        parameters=[
+            pipeline_params,
+            {
                 "src_topic0": "/camera/camera/depth/color/points",
                 "gpd_config_path": os.path.join(gpd_share, "config", "gpd_config.yaml"),
                 "world_frame": "world",
                 "src_frame0": "camera_depth_optical_frame",
                 "experiment_id": experiment_id,
-        }],
+            }
+        ],
         output="log",
     )
 

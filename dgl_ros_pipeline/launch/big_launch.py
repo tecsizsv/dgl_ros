@@ -105,6 +105,7 @@ def generate_launch_description():
         package="dgl_ros_models",
         executable="gpd",
         parameters=[
+            pipeline_params,
             {
                 "src_topic0": "/camera/camera/depth/color/points",
                 "gpd_config_path": os.path.join(gpd_share, "config", "gpd_config.yaml"),

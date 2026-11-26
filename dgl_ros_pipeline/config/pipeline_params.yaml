@@ -14,6 +14,10 @@ camera_base_tf:
     pitch: 1.2                      # rotation around the y-axis [rad]
     yaw: 0.0                        # rotation around the z-axis [rad]
 
+agent:
+  ros__parameters:
+    enable_file_logging: True       # enable runtime logging to file
+
 grasp_client:
   ros__parameters:
     z_min: -0.03                    # lower workspace boundary along world z [m]
