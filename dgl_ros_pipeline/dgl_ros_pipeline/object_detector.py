@@ -2,7 +2,6 @@ import cv2
 import rclpy
 import cv_bridge
 import logging
-from datetime import datetime
 from pathlib import Path
 from rclpy.node import Node
 from rclpy.executors import ExternalShutdownException
@@ -38,6 +37,7 @@ class ObjectDetector(Node):
                 ('position_limits', [0.25, 0.75, 0.25, 0.75]),
                 ('enable_file_logging', False),
                 ('log_dir', '/workspaces/vision-based-rgp-devcontainer/src/dgl_ros/dgl_ros_pipeline/logfiles'),
+                ('experiment_id', ''),
             ]
         )
 
@@ -52,6 +52,9 @@ class ObjectDetector(Node):
         self.x_limit_min, self.x_limit_max, self.y_limit_min,  self.y_limit_max = self.get_parameter('position_limits').value
         self.enable_file_logging = self.get_parameter('enable_file_logging').value
         log_dir = Path(self.get_parameter('log_dir').value)/ 'object_detector'
+
+        self.experiment_id = self.get_parameter('experiment_id').value
+
 
         # Initialize YOLO model
         if self.use_yolo:
@@ -93,12 +96,11 @@ class ObjectDetector(Node):
         """Configure the file logger for YOLO processing times."""
         log_dir.mkdir(parents=True, exist_ok=True)
         model_name = Path(self._model.model_name).stem
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         
         self._file_logger = logging.getLogger(f'{self.get_name()}_file')
         self._file_logger.setLevel(logging.INFO)
         self._file_logger.propagate = False
-        handler = logging.FileHandler(log_dir / f'object_detector_{model_name}_{timestamp}.log', encoding='utf-8')
+        handler = logging.FileHandler(log_dir / f'object_detector_{model_name}_{self.experiment_id}.log', encoding='utf-8')
         handler.setFormatter(logging.Formatter('%(asctime)s.%(msecs)03d,%(message)s', '%Y-%m-%d %H:%M:%S'))
         self._file_logger.addHandler(handler)
 

@@ -3,7 +3,6 @@ import json
 import rclpy
 import numpy as np
 import logging
-from datetime import datetime
 from pathlib import Path
 from rclpy.action import ActionClient
 from rclpy.executors import ExternalShutdownException
@@ -19,6 +18,36 @@ from moveit.planning import MoveItPy
 from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion
 from moveit_msgs.msg import CollisionObject
 from shape_msgs.msg import SolidPrimitive
+from time import perf_counter
+from dataclasses import dataclass
+
+@dataclass
+class CycleMetrics:
+    """Store measurement data for a single grasp cycle."""
+    workspace_volume_m3: float | None  = None
+    workspace_ms: float | None  = None
+
+    grasp_estimation_ms: float | None  = None
+    candidate_count: int | None  = None
+
+    open_planning_ms: float | None  = None
+    open_execution_ms: float | None  = None
+
+    pregrasp_planning_ms: float | None  = None
+    pregrasp_execution_ms: float | None  = None
+
+    grasp_planning_ms: float | None  = None
+    grasp_execution_ms: float | None  = None
+
+    close_planning_ms: float | None  = None
+    close_execution_ms: float | None  = None
+
+    lift_planning_ms: float | None  = None
+    lift_execution_ms: float | None  = None
+
+    cycle_ms: float | None  = None
+    outcome: str | None  = None
+
 
 class GraspClient(Node):
     """Coordinate workspace calculation, grasp pose estimation and grasp execution."""
@@ -40,6 +69,7 @@ class GraspClient(Node):
                 ('moveit_config_json', ''),
                 ('enable_file_logging', False),
                 ('log_dir', '/workspaces/vision-based-rgp-devcontainer/src/dgl_ros/dgl_ros_pipeline/logfiles'),
+                ('experiment_id', ''),
             ]
         )
 
@@ -67,7 +97,9 @@ class GraspClient(Node):
 
         # Initialize grasp cycle counters
         self.cycle_id = 0
-        self.successful_cycles = 0        
+        self.experiment_id = self.get_parameter('experiment_id').value
+        self.successful_cycles = 0 
+        self.metrics = CycleMetrics()       
 
         # Initialize TF buffer and listener
         self.tf_buffer = Buffer()
@@ -174,13 +206,12 @@ class GraspClient(Node):
     def _setup_file_logger(self, log_dir):
         """Configure the file logger for grasp cycle results."""
         log_dir.mkdir(parents=True, exist_ok=True)
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
 
         self._file_logger = logging.getLogger(f'{self.get_name()}_file')
         self._file_logger.setLevel(logging.INFO)
         self._file_logger.propagate = False
 
-        handler = logging.FileHandler(log_dir / f'grasp_client_{timestamp}.log', encoding='utf-8')
+        handler = logging.FileHandler(log_dir / f'grasp_client_{self.experiment_id}.log', encoding='utf-8')
         handler.setFormatter(logging.Formatter('%(asctime)s.%(msecs)03d,%(message)s', '%Y-%m-%d %H:%M:%S'))
         self._file_logger.addHandler(handler)
 
@@ -191,6 +222,10 @@ class GraspClient(Node):
             # timestamp, cycle_id, event, unused, outcome
             # 2026-11-24 20:15:30.123,1,cycle_end,,OK
             self._file_logger.info(f'{self.cycle_id},cycle_end,,{outcome}')
+
+    def _elapsed_ms (self, start_time:float) -> float:
+        """Returns the elapsed time in milliseconds."""
+        return (perf_counter()-start_time)*1000
 # endregion
 
 # region Subscription callbacks
@@ -236,7 +271,7 @@ class GraspClient(Node):
         workspace = self._calculate_workspace(detection.bbox, frame_id)
 
         if workspace is None:
-            return
+            return 
 
         self.is_grasp_cycle_active = True
         self.send_goal(workspace)

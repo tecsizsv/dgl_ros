@@ -1,6 +1,7 @@
 import os
 import yaml
 import json
+from datetime import datetime
 from launch import LaunchDescription
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch.actions import (
@@ -17,6 +18,8 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from moveit_configs_utils import MoveItConfigsBuilder
 
 def generate_launch_description():
+    experiment_id = datetime.now().strftime('%Y%m%d_%H%M%S')
+
     ur_type = "ur5e"
     onrobot_type = "rg2"
 
@@ -102,7 +105,10 @@ def generate_launch_description():
         executable="object_detector",
         name="object_detector",
         output="both",
-        parameters=[pipeline_params],
+        parameters=[
+            pipeline_params,
+            {"experiment_id": experiment_id},
+        ],
         ros_arguments=['--log-level', 'info'],
     )
 
@@ -114,6 +120,7 @@ def generate_launch_description():
                 "gpd_config_path": os.path.join(gpd_share, "config", "gpd_config.yaml"),
                 "world_frame": "world",
                 "src_frame0": "camera_depth_optical_frame",
+                "experiment_id": experiment_id,
         }],
         output="log",
     )
@@ -181,6 +188,7 @@ def generate_launch_description():
             pipeline_params,
             {"moveit_config_json": json.dumps(moveit_params)},
             {"use_sim_time": False},
+            {"experiment_id": experiment_id},
         ],
         ros_arguments=[
             '--log-level', 'warn',
