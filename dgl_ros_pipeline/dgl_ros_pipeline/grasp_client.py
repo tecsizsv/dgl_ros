@@ -280,7 +280,9 @@ class GraspClient(Node):
         # Reinitialize metrics in every run
         self.metrics = CycleMetrics() 
 
+        workspace_start = perf_counter()
         workspace = self._calculate_workspace(detection.bbox, frame_id)
+        self.metrics.workspace_ms = self._elapsed_ms(workspace_start)
 
         if workspace is None:
             return 
@@ -388,6 +390,7 @@ class GraspClient(Node):
         z_world_max = self.z_max               
 
         workspace = [x_world_min, x_world_max, y_world_min, y_world_max, z_world_min, z_world_max]
+        self.metrics.workspace_volume_m3 = float((x_world_max-x_world_min)*(y_world_max-y_world_min)*(z_world_max-z_world_min))
 
         return workspace
 
@@ -438,7 +441,8 @@ class GraspClient(Node):
                 return 
 
             # Send goal asynchronously 
-            self.get_logger().info(f'૮ ˶ᵔ ᵕ ᵔ˶ ა▄︻┻┳═一~♡︎ Sending goal request. ◯★•✦.․✦•★◯')    
+            self.get_logger().info(f'૮ ˶ᵔ ᵕ ᵔ˶ ა▄︻┻┳═一~♡︎ Sending goal request. ◯★•✦.․✦•★◯')
+            self.grasp_estimation_start = perf_counter()    
             self._send_goal_future = self._action_client.send_goal_async(goal_msg, feedback_callback=self.feedback_callback)
 
             self._send_goal_future.add_done_callback(self.goal_response_callback)
@@ -473,7 +477,10 @@ class GraspClient(Node):
         """ Process the action result: visualize the grasp candidates and execute the best one."""
         try:
             response = future.result()
+            self.metrics.grasp_estimation_ms = self._elapsed_ms(self. grasp_estimation_start)
+
             result = response.result
+            self.metrics.candidate_count = len(result.grasp_candidates)
 
             self.get_logger().debug(message_to_yaml(result))
 
@@ -564,22 +571,22 @@ class GraspClient(Node):
         self.is_motion_phase_active = True  # Set the flag to indicate that MoveIt execution has started
         self.get_logger().info("◯★•✦.․✦•★◯ Grasping sequence started. ◯★•✦.․✦•★◯\n" \
             "1. Opening gripper before moving the arm.")
-        failure = self._check_motion_status(self._move_gripper("open"), 'OPEN')
+        failure = self._check_motion_status(self._move_gripper("open","open"), 'OPEN')
         if failure:
             return failure
         
         self.get_logger().info("2. Moving arm close to the grasp pose.")
-        failure = self._check_motion_status(self._move_arm(grasp_candidate, "pregrasp_frame"), 'PREGRASP') # Move the end of the tcp to the target pose
+        failure = self._check_motion_status(self._move_arm(grasp_candidate, "pregrasp_frame", "pregrasp"), 'PREGRASP') # Move the end of the tcp to the target pose
         if failure:
             return failure
 
         self.get_logger().info("3. Moving gripper to the grasp pose.")
-        failure = self._check_motion_status(self._move_arm(grasp_candidate, "grasp_frame"), 'GRASP') # Move the hand of the robot to the grasping pose
+        failure = self._check_motion_status(self._move_arm(grasp_candidate, "grasp_frame", "grasp"), 'GRASP') # Move the hand of the robot to the grasping pose
         if failure:
             return failure
 
         self.get_logger().info("4. Closing gripper around object.")
-        failure = self._check_motion_status(self._move_gripper("closed"), 'CLOSE')
+        failure = self._check_motion_status(self._move_gripper("closed", "close"), 'CLOSE')
         if failure:
             return failure
 
@@ -591,7 +598,7 @@ class GraspClient(Node):
         self.get_logger().info("◯★•✦.․✦•★◯ Grasping sequence completed successfully. ◯★•✦.․✦•★◯")
         return "OK"
 
-    def _move_arm(self, target_pose, pose_link):
+    def _move_arm(self, target_pose, pose_link, step):
         """Plan and execute an arm motion that moves pose_link to the given pose."""
 
         self.robot_arm.set_start_state_to_current_state()
@@ -613,7 +620,7 @@ class GraspClient(Node):
             self.metrics.moveit_error_code = str(plan_result.error_code.val)
             return None
 
-    def _move_gripper(self, state):
+    def _move_gripper(self, state, step):
         """Plan and execute a gripper motion to the given state ('open' or 'closed')."""
 
         self.robot_gripper.set_start_state_to_current_state()
@@ -643,8 +650,7 @@ class GraspClient(Node):
             self.get_logger().warning(f"✖ ✖ ✖ {step} execution failed. ✖ ✖ ✖")
             return f"{step}_EXECUTION_FAILED"
         else:
-            return None
-        
+            return None     
 # endregion
 
 def main(args=None):
