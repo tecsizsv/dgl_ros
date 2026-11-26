@@ -100,7 +100,7 @@ class GraspClient(Node):
         self.cycle_id = 0
         self.experiment_id = self.get_parameter('experiment_id').value
         self.successful_cycles = 0 
-        self.metrics = CycleMetrics()       
+        self.metrics = CycleMetrics()
 
         # Initialize TF buffer and listener
         self.tf_buffer = Buffer()
@@ -224,6 +224,7 @@ class GraspClient(Node):
 
     def _log_cycle_end(self):
         """Log the measurement data of the completed grasp cycle."""
+        self.metrics.cycle_ms = self._elapsed_ms(self.cycle_start)
         # TODO: evaluate_results.py script!
         if self.enable_file_logging:
             metrics = ','.join(map(str, asdict(self.metrics).values()))
@@ -279,6 +280,7 @@ class GraspClient(Node):
         
         # Reinitialize metrics in every run
         self.metrics = CycleMetrics() 
+        self.cycle_start = perf_counter()
 
         workspace_start = perf_counter()
         workspace = self._calculate_workspace(detection.bbox, frame_id)
@@ -477,7 +479,7 @@ class GraspClient(Node):
         """ Process the action result: visualize the grasp candidates and execute the best one."""
         try:
             response = future.result()
-            self.metrics.grasp_estimation_ms = self._elapsed_ms(self. grasp_estimation_start)
+            self.metrics.grasp_estimation_ms = self._elapsed_ms(self.grasp_estimation_start)
 
             result = response.result
             self.metrics.candidate_count = len(result.grasp_candidates)
@@ -491,12 +493,11 @@ class GraspClient(Node):
 
             self.publish_grasp_markers(result.grasp_candidates)
 
-            self.metrics.outcome = self.execute_grasp(result.grasp_candidates[0]) # Move to the first grasp candidate
-            self.is_motion_phase_active = False
-
-            if self.metrics.outcome == "OK":
+            if self.execute_grasp(result.grasp_candidates[0]):
                 self.successful_cycles += 1
                 self.is_motion_phase_active = True  # so that no new cycle starts
+            else:            
+                self.is_motion_phase_active = False # TODO: delete? 
 
         except Exception as e:
             self.get_logger().error(f"Unexpected error: {e}")
@@ -557,7 +558,7 @@ class GraspClient(Node):
 
 # region Grasp execution
     def execute_grasp(self,grasp_candidate):
-        """Execute the grasp sequence (open, pregrasp, grasp, close) and return the outcome string."""
+        """Execute the grasp sequence and return whether it succeeded."""
 
         test_pose = PoseStamped()
         test_pose.header.frame_id = "world"
@@ -571,32 +572,28 @@ class GraspClient(Node):
         self.is_motion_phase_active = True  # Set the flag to indicate that MoveIt execution has started
         self.get_logger().info("◯★•✦.․✦•★◯ Grasping sequence started. ◯★•✦.․✦•★◯\n" \
             "1. Opening gripper before moving the arm.")
-        failure = self._check_motion_status(self._move_gripper("open","open"), 'OPEN')
-        if failure:
-            return failure
+        if not self._move_gripper("open", step="open"):
+            return False
         
         self.get_logger().info("2. Moving arm close to the grasp pose.")
-        failure = self._check_motion_status(self._move_arm(grasp_candidate, "pregrasp_frame", "pregrasp"), 'PREGRASP') # Move the end of the tcp to the target pose
-        if failure:
-            return failure
+        if not self._move_arm(grasp_candidate, "pregrasp_frame", step="pregrasp"): # Move the end of the tcp to the target pose
+            return False
 
         self.get_logger().info("3. Moving gripper to the grasp pose.")
-        failure = self._check_motion_status(self._move_arm(grasp_candidate, "grasp_frame", "grasp"), 'GRASP') # Move the hand of the robot to the grasping pose
-        if failure:
-            return failure
+        if not self._move_arm(grasp_candidate, "grasp_frame", step="grasp"): # Move the hand of the robot to the grasping pose
+            return False
 
         self.get_logger().info("4. Closing gripper around object.")
-        failure = self._check_motion_status(self._move_gripper("closed", "close"), 'CLOSE')
-        if failure:
-            return failure
+        if not self._move_gripper("closed", step="close"):
+            return False
 
         self.get_logger().info("TODO: 5. Lifting the object.")
-        # failure = self._check_motion_status(self._move_arm(grasp_candidate), 'LIFT')
-        # if failure:
-        #     return failure
+        # if not self._move_arm(grasp_candidate, "grasp_frame", step="lift"):
+        #     return False
         
         self.get_logger().info("◯★•✦.․✦•★◯ Grasping sequence completed successfully. ◯★•✦.․✦•★◯")
-        return "OK"
+        self.metrics.outcome = "OK"
+        return True
 
     def _move_arm(self, target_pose, pose_link, step):
         """Plan and execute an arm motion that moves pose_link to the given pose."""
@@ -604,21 +601,34 @@ class GraspClient(Node):
         self.robot_arm.set_start_state_to_current_state()
         self.robot_arm.set_goal_state(pose_stamped_msg=target_pose, pose_link=pose_link)
 
+        # Planning
+        planning_start = perf_counter()
         plan_result = self.robot_arm.plan()
+        setattr(self.metrics, f"{step}_planning_ms", self._elapsed_ms(planning_start)) 
 
-        if plan_result:
-            self.get_logger().info("Planning succeeded. Executing plan on arm...")
-            execution_status = self.moveit.execute(plan_result.trajectory, controllers=["scaled_joint_trajectory_controller"])
-            if execution_status: # only True when SUCCEEDED otherwise False
-                self.get_logger().info(f"Arm execution status: {execution_status.status}")
-            else:
-                self.get_logger().warning(f"Arm execution status: {execution_status.status}")
-                self.metrics.moveit_error_code = execution_status.status
-            return execution_status
-        else:
+        if not plan_result:
             self.get_logger().warning(f"Arm planning error code: {plan_result.error_code.val}")
+            self.get_logger().warning(f"✖ ✖ ✖ {step} planning failed. ✖ ✖ ✖")
+            self.metrics.outcome = f"{step.upper()}_PLANNING_FAILED"
             self.metrics.moveit_error_code = str(plan_result.error_code.val)
-            return None
+            return False
+
+        self.get_logger().info("Planning succeeded. Executing plan on arm...")
+
+        # Execution
+        execution_start = perf_counter()
+        execution_status = self.moveit.execute(plan_result.trajectory, controllers=["scaled_joint_trajectory_controller"])
+        setattr(self.metrics, f"{step}_execution_ms", self._elapsed_ms(execution_start)) 
+
+        if not execution_status: # only True when SUCCEEDED otherwise False
+            self.get_logger().warning(f"Arm execution status: {execution_status.status}")
+            self.get_logger().warning(f"✖ ✖ ✖ {step} execution failed. ✖ ✖ ✖")
+            self.metrics.outcome = f"{step.upper()}_EXECUTION_FAILED"
+            self.metrics.moveit_error_code = execution_status.status
+            return False
+        
+        self.get_logger().info(f"Arm execution status: {execution_status.status}")
+        return True
 
     def _move_gripper(self, state, step):
         """Plan and execute a gripper motion to the given state ('open' or 'closed')."""
@@ -626,31 +636,36 @@ class GraspClient(Node):
         self.robot_gripper.set_start_state_to_current_state()
         self.robot_gripper.set_goal_state(configuration_name=state)
 
+  
+        # Planning
+        planning_start = perf_counter()
         plan_result = self.robot_gripper.plan()
+        setattr(self.metrics, f"{step}_planning_ms", self._elapsed_ms(planning_start)) 
 
-        if plan_result:
-            self.get_logger().info(f"Planning succeeded. Executing plan on gripper...")
-            execution_status = self.moveit.execute(plan_result.trajectory, controllers=["finger_width_trajectory_controller"])
-            if execution_status: # only True when SUCCEEDED otherwise False
-                self.get_logger().info(f"Gripper execution status: {execution_status.status}")
-            else:
-                self.get_logger().warning(f"Gripper execution status: {execution_status.status}")
-                self.metrics.moveit_error_code = execution_status.status
-            return execution_status
-        else:
+        if not plan_result:
             self.get_logger().warning(f"Gripper planning error code: {plan_result.error_code.val}")
-            self.metrics.moveit_error_code = str(plan_result.error_code.val)
-            return None
-
-    def _check_motion_status(self, status, step):
-        if status is None: 
             self.get_logger().warning(f"✖ ✖ ✖ {step} planning failed. ✖ ✖ ✖")
-            return  f"{step}_PLANNING_FAILED"
-        elif not status:
+            self.metrics.outcome = f"{step.upper()}_PLANNING_FAILED"
+            self.metrics.moveit_error_code = str(plan_result.error_code.val)
+            return False
+
+        
+        self.get_logger().info(f"Planning succeeded. Executing plan on gripper...")
+        # Execution
+        execution_start = perf_counter()
+        execution_status = self.moveit.execute(plan_result.trajectory, controllers=["finger_width_trajectory_controller"])
+        setattr(self.metrics, f"{step}_execution_ms", self._elapsed_ms(execution_start)) 
+
+        if not execution_status: # only True when SUCCEEDED otherwise False
+            self.get_logger().warning(f"Gripper execution status: {execution_status.status}")
             self.get_logger().warning(f"✖ ✖ ✖ {step} execution failed. ✖ ✖ ✖")
-            return f"{step}_EXECUTION_FAILED"
-        else:
-            return None     
+            self.metrics.outcome = f"{step.upper()}_EXECUTION_FAILED"
+            self.metrics.moveit_error_code = execution_status.status
+            return False
+        
+        self.get_logger().info(f"Gripper execution status: {execution_status.status}")
+
+        return True
 # endregion
 
 def main(args=None):
