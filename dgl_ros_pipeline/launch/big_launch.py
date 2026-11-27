@@ -3,19 +3,18 @@ import yaml
 import json
 from datetime import datetime
 from launch import LaunchDescription
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch.actions import (
     DeclareLaunchArgument,
-    IncludeLaunchDescription,
-    RegisterEventHandler,
     ExecuteProcess,
-    LogInfo,)
+    RegisterEventHandler,
+    IncludeLaunchDescription,)
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 from launch.event_handlers import OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from moveit_configs_utils import MoveItConfigsBuilder
-
+from launch.conditions import IfCondition, UnlessCondition
 
 def generate_launch_description():
     experiment_id = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -35,9 +34,6 @@ def generate_launch_description():
     kinematics_file = os.path.join(onrobot_moveit_share, "config", "kinematics.yaml")
     controllers_file = os.path.join(onrobot_moveit_share, "config", "controllers.yaml")
 
-    # MoveItPy settings
-    moveit_cpp_yaml = os.path.join(dgl_share, "config", "moveit_cpp.yaml")
-    
     # Loading params
     with open(pipeline_params) as f:
         params = yaml.safe_load(f)
@@ -49,9 +45,24 @@ def generate_launch_description():
     with open(controllers_file) as f:
         controllers = yaml.safe_load(f)
     
-    log_level_arg = DeclareLaunchArgument('log_level', default_value='info')
+    log_level_arg = DeclareLaunchArgument('log_level', default_value='info', description='Log-levels to see in terminal.')
+    use_bag_arg = DeclareLaunchArgument('use_bag', default_value='false', choices=['true', 'false'], description='Replay a recorded rosbag instead of starting the RealSense camera.')
 
-    realsense_launch = IncludeLaunchDescription( # elindítja a kamerát, ami a pointcloud topicokat publikálja
+    # Rosbag stuff
+    rosbag_dir = "/workspaces/vision-based-rgp-devcontainer/rosbags"
+    rosbag_name_arg = DeclareLaunchArgument('rosbag', default_value='mug_aligned', description='Name of the rosbag to play.')
+    rosbag_path = PathJoinSubstitution([rosbag_dir, LaunchConfiguration("rosbag"),])
+    
+    bag_play = ExecuteProcess(
+        cmd=["ros2", "bag", "play", rosbag_path,
+            "--loop", "--rate", "0.3",
+            "--progress-bar-update-rate", "0"
+        ],
+        output="screen",
+        condition=IfCondition(LaunchConfiguration('use_bag'))
+    )
+
+    realsense_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(
                 get_package_share_directory("realsense2_camera"),
@@ -63,9 +74,10 @@ def generate_launch_description():
             "json_file_path": os.path.join(dgl_share, "config", "camera_config2.json",),
             "config_file": os.path.join(dgl_share, "config", "camera_filters.yaml"),
         }.items(),
+        condition=UnlessCondition(LaunchConfiguration('use_bag')),
     )
 
-    camera_static_tf = Node( # publikálja a transzformot: cameralink hol van a world-höz képest
+    camera_static_tf = Node( # camera position relative to world frame
         package="tf2_ros",
         executable="static_transform_publisher",
         name="camera_base_tf",
@@ -91,7 +103,7 @@ def generate_launch_description():
         }.items(),
     )
 
-    rviz2 = Node( # elindítja az rviz-t
+    rviz2 = Node(
         package="rviz2",
         executable="rviz2",
         #name="rviz2",
@@ -117,7 +129,7 @@ def generate_launch_description():
         output="both",
     )
 
-    object_detection = Node( # elindítja az object detectiont, ami a kamera topicjára feliratkozik, és a detektált objektumokat publikálja
+    object_detection = Node( 
         package="dgl_ros_pipeline",
         executable="object_detector",
         name="object_detector",
@@ -160,7 +172,6 @@ def generate_launch_description():
         #.trajectory_execution(file_path=os.path.join(onrobot_moveit_share, "config", "controllers.yaml"))
         .planning_pipelines(pipelines=["ompl"], default_planning_pipeline="ompl")
         .moveit_cpp(file_path=os.path.join(dgl_share, "config", "moveit_cpp.yaml"))
-        #.sensors_3d(file_path=os.path.join(dgl_share, "config", "sensors_3d.yaml"))
         .to_moveit_configs()
     )
 
@@ -182,10 +193,7 @@ def generate_launch_description():
     moveit_params["moveit_simple_controller_manager"] = controllers
     moveit_params["moveit_manage_controllers"] = False
 
-    #print(yaml.safe_dump(moveit_params["ompl"], sort_keys=False))
-
-
-    grasp_client = Node( # elindítja a grasp clientet
+    grasp_client = Node(
         package="dgl_ros_pipeline",
         executable="grasp_client",
         name="grasp_client",
@@ -203,7 +211,8 @@ def generate_launch_description():
     )
 
     wait_for_camera = ExecuteProcess(
-        cmd=["ros2", "topic", "echo", "--once", "/camera/camera/depth/color/points"],
+        cmd=["ros2", "topic", "echo", "--once", "--no-arr",
+             "/camera/camera/depth/color/points", "sensor_msgs/msg/PointCloud2"],
         output="log",
     )
 
@@ -216,6 +225,9 @@ def generate_launch_description():
 
     return LaunchDescription([
         log_level_arg,
+        use_bag_arg,
+        rosbag_name_arg,
+        bag_play,
         realsense_launch,
         wait_for_camera,
         camera_static_tf,

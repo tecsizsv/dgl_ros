@@ -7,13 +7,11 @@ from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch.actions import (
     DeclareLaunchArgument,
     ExecuteProcess,
-    TimerAction,
     RegisterEventHandler,
-    LogInfo,
     IncludeLaunchDescription,)
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
-from launch.event_handlers import  OnProcessStart, OnProcessExit
+from launch.event_handlers import OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from moveit_configs_utils import MoveItConfigsBuilder
 
@@ -35,9 +33,6 @@ def generate_launch_description():
     kinematics_file = os.path.join(onrobot_moveit_share, "config", "kinematics.yaml")
     controllers_file = os.path.join(onrobot_moveit_share, "config", "controllers.yaml")
 
-    # MoveItPy settings
-    moveit_cpp_yaml = os.path.join(dgl_share, "config", "moveit_cpp.yaml")
-    
     # Loading params
     with open(pipeline_params) as f:
         params = yaml.safe_load(f)
@@ -125,7 +120,7 @@ def generate_launch_description():
                 "experiment_id": experiment_id,
             }
         ],
-        output="log",
+        output="both",
     )
 
     moveit_config = (
@@ -179,8 +174,6 @@ def generate_launch_description():
     moveit_params["moveit_controller_manager"] = ("moveit_simple_controller_manager/MoveItSimpleControllerManager")
     moveit_params["moveit_simple_controller_manager"] = controllers
     moveit_params["moveit_manage_controllers"] = False
-
-    #print(yaml.safe_dump(moveit_params["ompl"], sort_keys=False))
 
     grasp_client = Node(
         package="dgl_ros_pipeline",
