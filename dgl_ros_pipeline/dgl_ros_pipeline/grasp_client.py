@@ -67,6 +67,7 @@ class GraspClient(Node):
                 ('margin', 0.05),
                 ('table_pos', [0.37, 0.0, -0.05]),
                 ('table_dim', [0.7, 1.0, 0.1]),
+                ('lift_height', 0.1),
                 ('moveit_config_json', ''),
                 ('enable_file_logging', False),
                 ('log_dir', '/workspaces/vision-based-rgp-devcontainer/src/dgl_ros/dgl_ros_pipeline/logfiles'),
@@ -81,6 +82,7 @@ class GraspClient(Node):
         self.margin = self.get_parameter('margin').value
         self.table_pos = self.get_parameter('table_pos').value
         self.table_dim = self.get_parameter('table_dim').value
+        self.lift_height = self.get_parameter('lift_height').value
         moveit_config_json = self.get_parameter("moveit_config_json").value
         self.enable_file_logging = self.get_parameter('enable_file_logging').value
         log_dir = Path( self.get_parameter('log_dir').value)/ 'grasp_client'
@@ -128,6 +130,8 @@ class GraspClient(Node):
 
         # Initialize MoveItPy
         self._initialize_moveit(moveit_config_json)
+        self._move_to_state('test_configuration')
+
            
         # Configure file logger
         if self.enable_file_logging:
@@ -142,6 +146,7 @@ class GraspClient(Node):
             f'  Workspace margin:   {self.margin} m\n'
             f'  Table position:     {self.table_pos}\n'
             f'  Table dimensions:   {self.table_dim}\n'
+            f'  Lift height:        {self.lift_height}\n'
             f'  File logging:       {self.enable_file_logging}\n'
             f'  Detections topic:   {self._detection_sub.topic_name}\n'
             f'  Camera info topic:  {self._camera_info_sub.topic_name}\n'
@@ -560,12 +565,6 @@ class GraspClient(Node):
     def execute_grasp(self,grasp_candidate):
         """Execute the grasp sequence and return whether it succeeded."""
 
-        test_pose = PoseStamped()
-        test_pose.header.frame_id = "world"
-        test_pose.header.stamp = grasp_candidate.header.stamp
-        test_pose.pose.position = Point(x=0.439, y=0.309, z=0.931)
-        test_pose.pose.orientation = Quaternion(x=0.500, y=0.500, z=0.500, w=-0.500)
-
         # Publish the target pose for visualization and debug purposes
         self._target_pose_pub.publish(grasp_candidate)
 
@@ -587,9 +586,10 @@ class GraspClient(Node):
         if not self._move_gripper("closed", step="close"):
             return False
 
-        self.get_logger().info("TODO: 5. Lifting the object.")
-        # if not self._move_arm(grasp_candidate, "grasp_frame", step="lift"):
-        #     return False
+        self.get_logger().info("5. Lifting the object.")
+        grasp_candidate.pose.position.z = self.lift_height
+        if not self._move_arm(grasp_candidate, "grasp_frame", step="lift"):
+            return False
         
         self.get_logger().info("◯★•✦.․✦•★◯ Grasping sequence completed successfully. ◯★•✦.․✦•★◯")
         self.metrics.outcome = "OK"
@@ -665,6 +665,35 @@ class GraspClient(Node):
         
         self.get_logger().info(f"Gripper execution status: {execution_status.status}")
 
+        return True
+
+    def _move_to_state(self, state):
+        """Plan and execute an arm motion that moves pose_link to the given pose."""
+        
+        self.robot_arm.set_start_state_to_current_state()
+        self.robot_arm.set_goal_state(configuration_name=state)
+
+        self.get_logger().warning(f"Going to {state} state.")
+
+        # Planning
+        plan_result = self.robot_arm.plan()
+
+        if not plan_result:
+            self.get_logger().warning(f"Arm planning error code: {plan_result.error_code.val}")
+            self.get_logger().warning(f"Going to {state}  planning failed.")
+            self.metrics.moveit_error_code = str(plan_result.error_code.val)
+            return False
+
+        # Execution
+        execution_status = self.moveit.execute(plan_result.trajectory, controllers=["scaled_joint_trajectory_controller"])
+
+        if not execution_status: # only True when SUCCEEDED otherwise False
+            self.get_logger().warning(f"Arm execution status: {execution_status.status}")
+            self.get_logger().warning(f"Going to {state}  execution failed.")
+            self.metrics.moveit_error_code = execution_status.status
+            return False
+        
+        self.get_logger().info(f"Arm execution status: {execution_status.status}")
         return True
 # endregion
 

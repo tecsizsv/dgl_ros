@@ -175,6 +175,7 @@ def generate_launch_description():
         .to_moveit_configs()
     )
 
+# region MoveItPy parameter overrides
     moveit_params = moveit_config.to_dict()
 
     response_adapters = moveit_params["ompl"].setdefault("response_adapters", [])
@@ -192,6 +193,7 @@ def generate_launch_description():
     moveit_params["moveit_controller_manager"] = ("moveit_simple_controller_manager/MoveItSimpleControllerManager")
     moveit_params["moveit_simple_controller_manager"] = controllers
     moveit_params["moveit_manage_controllers"] = False
+#endregion
 
     grasp_client = Node(
         package="dgl_ros_pipeline",
